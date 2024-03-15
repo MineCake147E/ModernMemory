@@ -1,0 +1,7 @@
+﻿[*.cs]
+
+# RCS1123: Add parentheses when necessary.
+dotnet_diagnostic.RCS1123.severity = none
+
+# CA1000: Do not declare static members on generic types
+dotnet_diagnostic.CA1000.severity = none

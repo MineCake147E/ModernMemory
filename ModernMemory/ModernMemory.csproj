@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\.editorconfig" Link=".editorconfig" />
+  </ItemGroup>
+  <Import Project="../T4TransformTargets.targets" />
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipelines" Version="8.0.0-rc.2.23479.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Buffers\Async\" />
+    <Folder Include="Concurrent\" />
+    <Folder Include="NativeSpanFactories\" />
+    <Folder Include="Pipelines\Generic\" />
+  </ItemGroup>
+
+</Project>
