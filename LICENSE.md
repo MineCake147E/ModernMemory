@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2024 ‚¿[‚¸(E8E)‚¯[‚«
+Copyright (c) 2024 ã¡ãƒ¼ãš(ãƒ»8ãƒ»)ã‘ãƒ¼ã
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
