@@ -144,59 +144,18 @@ namespace ModernMemory
         #endregion
 
         #region WriteTo
-        public static void WriteTo<T, TBufferWriter>(this ReadOnlySequence<T> sequence, TBufferWriter bufferWriter) where TBufferWriter : IBufferWriter<T>
+        public static void WriteTo<T, TBufferWriter>(this ReadOnlySequence<T> sequence, ref TBufferWriter bufferWriter) where TBufferWriter : IBufferWriter<T>
         {
-            var pos = sequence.Start;
-            while (sequence.TryGet(ref pos, out var m))
-            {
-                var hs = bufferWriter.GetSpan(m.Length);
-                var s = m.Span;
-                var res = s.CopyAtMostTo(hs);
-                bufferWriter.Advance(res);
-            }
+            using var dw = DataWriter<T>.CreateFrom(ref bufferWriter);
+            dw.WriteAtMost(sequence);
         }
 
-        public static SequencePosition WriteAtMost<T, TBufferWriter>(this ref DataWriter<T, TBufferWriter> dataWriter, ReadOnlySequence<T> sequence, nuint offset = 0) where TBufferWriter : INativeBufferWriter<T>
+        public static SequencePosition WriteAtMostTo<T>(this ReadOnlySequence<T> sequence, NativeSpan<T> destination)
         {
-            if (dataWriter.IsCompleted) return sequence.Start;
-            var pos = sequence.Start;
-            var cp = pos;
-            nuint c = 0;
-            if (offset > 0)
-            {
-                while (sequence.TryGet(ref pos, out var m))
-                {
-                    var s = m.Span;
-                    var k = offset - c;
-                    if ((nuint)m.Length > k)
-                    {
-                        s = s.Slice((int)k);
-                        var w = dataWriter.WriteAtMost(s);
-                        if (dataWriter.IsCompleted)
-                        {
-                            return sequence.GetPosition(w, cp);
-                        }
-                        Debug.Assert(s.Length == w);
-                        cp = pos;
-                        break;
-                    }
-                    c += (nuint)m.Length;
-                    cp = pos;
-                }
-            }
-            while (sequence.TryGet(ref pos, out var m))
-            {
-                var s = m.Span;
-                var w = dataWriter.WriteAtMost(s);
-                if (dataWriter.IsCompleted)
-                {
-                    return sequence.GetPosition(w, cp);
-                }
-                Debug.Assert(s.Length == w);
-                cp = pos;
-            }
-            return sequence.End;
+            using var dw = DataWriter.CreateFrom(destination);
+            return dw.WriteAtMost(sequence);
         }
+
         #endregion
 
         #region AsReadOnlySequence

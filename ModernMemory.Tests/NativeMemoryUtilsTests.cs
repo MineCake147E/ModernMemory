@@ -65,7 +65,7 @@ namespace ModernMemory.Tests
         [TestCaseSource(nameof(LengthTestCaseSource))]
         public void CopyFromHeadCopiesBytesCorrectlyNoOverlap(int size)
         {
-            PrepareByteArraysNoOverlap(size, out var dst, out var exp, out var src, out var sD, out var sE, out var sS, out var sDstActual);
+            PrepareByteArraysNoOverlap(size, out _, out _, out _, out var sD, out var sE, out var sS, out var sDstActual);
             NativeMemoryUtils.CopyFromHead(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sS), (nuint)sS.Length);
             Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
         }
@@ -73,7 +73,7 @@ namespace ModernMemory.Tests
         [TestCaseSource(nameof(LengthTestCaseSource))]
         public void CopyFromTailCopiesBytesCorrectlyNoOverlap(int size)
         {
-            PrepareByteArraysNoOverlap(size, out var dst, out var exp, out var src, out var sD, out var sE, out var sS, out var sDstActual);
+            PrepareByteArraysNoOverlap(size, out _, out _, out _, out var sD, out var sE, out var sS, out var sDstActual);
             NativeMemoryUtils.CopyFromTail(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sS), (nuint)sS.Length);
             Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
         }

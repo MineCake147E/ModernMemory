@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Buffers.DataFlow;
 
 using NUnit.Framework;
 
@@ -101,37 +102,37 @@ namespace ModernMemory.Tests.Buffers
         [TestCaseSource(nameof(SliceByStartLengthTestCaseSource))]
         public void SliceByStartLengthWorksCorrectly(int start, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var slice = sequence.Slice((nuint)start, (nuint)length);
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthTestCaseSource))]
         public void SliceByStartEndPositionWorksCorrectly(int start, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var end = sequence.GetPosition((nuint)(start + length));
             var slice = sequence.Slice((nuint)start, end);
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthTestCaseSource))]
         public void SliceByStartPositionLengthWorksCorrectly(int start, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var pos = sequence.GetPosition((nuint)start);
             var slice = sequence.Slice(pos, (nuint)length);
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthTestCaseSource))]
         public void SliceByStartPositionEndPositionWorksCorrectly(int start, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var pos = sequence.GetPosition((nuint)start);
             var end = sequence.GetPosition((nuint)(start + length));
             var slice = sequence.Slice(pos, end);
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         private static IEnumerable<TestCaseData> SliceByStartAfterSliceTestCaseSource()
@@ -146,22 +147,22 @@ namespace ModernMemory.Tests.Buffers
         [TestCaseSource(nameof(SliceByStartAfterSliceTestCaseSource))]
         public void SliceByStartWorksCorrectlyAfterSlice(SliceData first, int second, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var slice = firstSlice.Slice((nuint)second);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, (int)slice.Length)));
         }
 
         [TestCaseSource(nameof(SliceByStartAfterSliceTestCaseSource))]
         public void SliceByStartPositionWorksCorrectlyAfterSlice(SliceData first, int second, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var pos = firstSlice.GetPosition((nuint)second);
             var slice = firstSlice.Slice(pos);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, (int)slice.Length)));
         }
 
         private static IEnumerable<TestCaseData> SliceByStartLengthAfterSliceTestCaseSource()
@@ -177,45 +178,59 @@ namespace ModernMemory.Tests.Buffers
         [TestCaseSource(nameof(SliceByStartLengthAfterSliceTestCaseSource))]
         public void SliceByStartLengthWorksCorrectlyAfterSlice(SliceData first, int second, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var slice = firstSlice.Slice((nuint)second, (nuint)length);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthAfterSliceTestCaseSource))]
         public void SliceByStartEndPositionWorksCorrectlyAfterSlice(SliceData first, int second, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var end = firstSlice.GetPosition((nuint)second + (nuint)length);
             var slice = firstSlice.Slice((nuint)second, end);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthAfterSliceTestCaseSource))]
         public void SliceByStartPositionLengthWorksCorrectlyAfterSlice(SliceData first, int second, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var pos = firstSlice.GetPosition((nuint)second);
             var slice = firstSlice.Slice(pos, (nuint)length);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
 
         [TestCaseSource(nameof(SliceByStartLengthAfterSliceTestCaseSource))]
         public void SliceByStartPositionEndPositionWorksCorrectlyAfterSlice(SliceData first, int second, int length, params int[] lengths)
         {
-            PrepareIndexSequence(lengths, out var sum, out var sequence);
+            PrepareIndexSequence(lengths, out _, out var sequence);
             var firstSlice = sequence.Slice(first);
             var pos = firstSlice.GetPosition((nuint)second);
             var end = firstSlice.GetPosition((nuint)second + (nuint)length);
             var slice = firstSlice.Slice(pos, end);
             var start = (int)first.Start + second;
-            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, sum - start)));
+            Assert.That(slice, Is.EquivalentTo(Enumerable.Range(start, length)));
+        }
+
+        [TestCaseSource(nameof(SliceByStartLengthAfterSliceTestCaseSource))]
+        public void TryGetWorksCorrectly(SliceData first, int second, int length, params int[] lengths)
+        {
+            PrepareIndexSequence(lengths, out _, out var sequence);
+            var firstSlice = sequence.Slice(first);
+            var slice = firstSlice.Slice((nuint)second, (nuint)length);
+            var start = (int)first.Start + second;
+            var arr = new int[slice.Length];
+            var span = arr.AsNativeSpan();
+            using var dw = DataWriter.CreateFrom(span);
+            _ = dw.WriteAtMost(slice);
+            Assert.That(arr, Is.EquivalentTo(Enumerable.Range(start, length)));
         }
     }
 }

@@ -108,7 +108,7 @@ namespace ModernMemory.Buffers.DataFlow.WrappedDataProviders
             {
                 s = s.Slice(0, (long)count);
             }
-            s.WriteTo(bufferWriter);
+            s.WriteTo(ref bufferWriter);
         }
         public void PeekExact(NativeSpan<T> destination, nuint offset = 0U)
         {
@@ -126,7 +126,7 @@ namespace ModernMemory.Buffers.DataFlow.WrappedDataProviders
             ArgumentOutOfRangeException.ThrowIfGreaterThan(count, (ulong)long.MaxValue);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(offset, (ulong)long.MaxValue);
             Prefetch(offset + count);
-            sequence.Slice((long)offset, (long)count).WriteTo(bufferWriter);
+            sequence.Slice((long)offset, (long)count).WriteTo(ref bufferWriter);
         }
         public void Prefetch(nuint count)
         {
@@ -165,29 +165,9 @@ namespace ModernMemory.Buffers.DataFlow.WrappedDataProviders
         {
             if (destination.IsEmpty) return 0;
             var seq = sequence;
-            if (seq.IsSingleSegment)
-            {
-                var s = (ReadOnlyNativeSpan<T>)seq.FirstSpan;
-                return s.CopyAtMostTo(destination);
-            }
-            var dst = destination;
-            var q = seq.Start;
-            while (!dst.IsEmpty && seq.TryGet(ref q, out var m))
-            {
-                var hs = dst;
-                var s = m.Span;
-                var res = s.CopyAtMostTo(hs);
-                dst = dst.Slice(res);
-            }
-            if (q.GetObject() is null)
-            {
-                Refill(seq.End, seq.End);
-            }
-            else
-            {
-                Refill(q, q);
-            }
-            return destination.Length - dst.Length;
+            var writer = DataWriter.CreateFrom(destination);
+            writer.WriteAtMost(seq);
+            return writer.GetElementsWritten();
         }
         public void ReadExact(NativeSpan<T> destination)
         {
@@ -204,8 +184,8 @@ namespace ModernMemory.Buffers.DataFlow.WrappedDataProviders
                 bufferWriter.Advance(res);
                 return;
             }
-            var w = new DataWriter<T, TBufferWriter>(ref bufferWriter, count);
-            var end = NativeMemoryExtensions.WriteAtMost(ref w, s, count);
+            using var w = new DataWriter<T, TBufferWriter>(ref bufferWriter, count);
+            var end = w.WriteAtMost(s);
             if (s.End.Equals(end))
             {
                 Refill(end, end);

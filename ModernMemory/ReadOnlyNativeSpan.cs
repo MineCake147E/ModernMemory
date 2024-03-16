@@ -91,6 +91,20 @@ namespace ModernMemory
         /// Initializes a new instance of the <see cref="ReadOnlyNativeSpan{T}"/> struct.
         /// </summary>
         /// <param name="headPointer">The head pointer.</param>
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public unsafe ReadOnlyNativeSpan(ref readonly T headPointer)
+        {
+            head = ref Unsafe.AsRef(in headPointer);
+            length = 1;
+        }
+
+
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ReadOnlyNativeSpan{T}"/> struct.
+        /// </summary>
+        /// <param name="headPointer">The head pointer.</param>
         /// <param name="length">The length.</param>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

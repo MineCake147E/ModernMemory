@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace ModernMemory.Buffers
 {
     [StructLayout(LayoutKind.Sequential)]
-    public readonly partial struct ReadOnlyMemorySequence<T> : IReadOnlySequence<T, ReadOnlyMemorySequence<T>, SequencePositionSlim, ReadOnlyMemorySequence<T>.Enumerator>
+    public readonly partial struct ReadOnlyMemorySequence<T> : IReadOnlySequence<T, ReadOnlyMemorySequence<T>, SlimSequencePosition, ReadOnlyMemorySequence<T>.Enumerator>
     {
         private readonly ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>> segments;
         private readonly nuint firstIndex;
@@ -78,7 +78,7 @@ namespace ModernMemory.Buffers
                 span.ElementAtUnchecked(i) = new(segment, runningIndex);
                 runningIndex += segment.Length;
             }
-            this = new(array.AsNativeMemory());
+            this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)array.AsNativeMemory());
         }
 
         [SkipLocalsInit]
@@ -99,7 +99,27 @@ namespace ModernMemory.Buffers
                 span.ElementAtUnchecked(i) = new(segment, runningIndex);
                 runningIndex += (nuint)segment.Length;
             }
-            this = new(array.AsNativeMemory());
+            this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)array.AsNativeMemory());
+        }
+
+        [SkipLocalsInit]
+        public ReadOnlyMemorySequence(NativeMemory<ReadOnlySequenceSegment<T>> segments)
+        {
+            var span = segments.Span;
+            if (span.IsEmpty)
+            {
+                this = default;
+                return;
+            }
+            nuint runningIndex = 0;
+            for (nuint i = 0; i < span.Length; i++)
+            {
+                ref var m = ref span.ElementAtUnchecked(i);
+                var memory = m.Memory;
+                m = new(memory, runningIndex);
+                runningIndex += memory.Length;
+            }
+            this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)segments);
         }
 
         [SkipLocalsInit]
@@ -166,12 +186,12 @@ namespace ModernMemory.Buffers
 
         public bool IsEmpty => Length == 0;
         public bool IsSingleSegment => segments.Length == 1;
-        public SequencePositionSlim Start => IsEmpty ? default : new(0, firstIndex);
-        public SequencePositionSlim End => IsEmpty ? default : new(segments.Length - 1, endIndex);
+        public SlimSequencePosition Start => IsEmpty ? default : new(0, firstIndex);
+        public SlimSequencePosition End => IsEmpty ? default : new(segments.Length - 1, endIndex);
         public ReadOnlyNativeMemory<T> First => segments.Span.IsEmpty ? default : segments.Span[0].Memory;
         public ReadOnlyNativeSpan<T> FirstSpan => First.Span;
 
-        public nuint GetOffset(SequencePositionSlim position)
+        public nuint GetOffset(SlimSequencePosition position)
         {
             AssertPosition(position, out _, out var offset);
             return offset;
@@ -179,7 +199,7 @@ namespace ModernMemory.Buffers
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [SkipLocalsInit]
-        private bool VerifyPosition(SequencePositionSlim position, out ReadOnlySequenceSegment<T> segment, out nuint positionInSequence)
+        private bool VerifyPosition(SlimSequencePosition position, out ReadOnlySequenceSegment<T> segment, out nuint positionInSequence)
         {
             Unsafe.SkipInit(out segment);
             Unsafe.SkipInit(out positionInSequence);
@@ -202,7 +222,7 @@ namespace ModernMemory.Buffers
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [SkipLocalsInit]
-        private void AssertPosition(SequencePositionSlim position, out ReadOnlySequenceSegment<T> segment, out nuint positionInSequence, [ConstantExpected] bool allowEnd = false)
+        private void AssertPosition(SlimSequencePosition position, out ReadOnlySequenceSegment<T> segment, out nuint positionInSequence, [ConstantExpected] bool allowEnd = false)
         {
             var segmentPosition = position.SegmentPosition;
             var index = position.Index;
@@ -239,12 +259,12 @@ namespace ModernMemory.Buffers
             positionInSequence = ss.RunningIndex + index - firstRunningIndex;
         }
 
-        public SequencePositionSlim GetPosition(nuint offset)
+        public SlimSequencePosition GetPosition(nuint offset)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThan(offset, Length);
             return FindPosition(segments.Span, offset + firstRunningIndex + firstIndex);
         }
-        public SequencePositionSlim GetPosition(nuint offset, SequencePositionSlim origin)
+        public SlimSequencePosition GetPosition(nuint offset, SlimSequencePosition origin)
         {
             var position = origin;
             var segmentPosition = position.SegmentPosition;
@@ -288,7 +308,7 @@ namespace ModernMemory.Buffers
             return FindPosition(s.Slice(segmentPosition), n, segmentPosition);
         }
 
-        internal static SequencePositionSlim FindPosition(ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>> segments, nuint index, nuint positionOffset = 0)
+        internal static SlimSequencePosition FindPosition(ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>> segments, nuint index, nuint positionOffset = 0)
         {
             var pos = segments.BinarySearchRangeComparable(index, out _);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(pos, segments.Length);
@@ -304,32 +324,32 @@ namespace ModernMemory.Buffers
             return new(pos + positionOffset, index - nsg.RunningIndex);
         }
         public ReadOnlyMemorySequence<T> Slice(nuint start) => start == 0 ? this : SliceInternal(GetPosition(start));
-        public ReadOnlyMemorySequence<T> Slice(SequencePositionSlim start)
+        public ReadOnlyMemorySequence<T> Slice(SlimSequencePosition start)
         {
             AssertPosition(start, out _, out var positionInSequence);
             return positionInSequence == 0 ? this : SliceInternal(start);
         }
         public ReadOnlyMemorySequence<T> Slice(nuint start, nuint length)
             => start == 0 ? SliceInternalByEnd(GetPosition(length)) : Slice(GetPosition(start), length);
-        public ReadOnlyMemorySequence<T> Slice(nuint start, SequencePositionSlim end)
+        public ReadOnlyMemorySequence<T> Slice(nuint start, SlimSequencePosition end)
         {
             AssertPosition(end, out _, out _, true);
             return start == 0 ? SliceInternalByEnd(end) : Slice(GetPosition(start), end);
         }
 
-        public ReadOnlyMemorySequence<T> Slice(SequencePositionSlim start, nuint length)
+        public ReadOnlyMemorySequence<T> Slice(SlimSequencePosition start, nuint length)
         {
             AssertPosition(start, out _, out var positionInSequence);
             return positionInSequence == 0 ? SliceInternalByEnd(GetPosition(length)) : SliceInternal(start, GetPosition(length, start));
         }
-        public ReadOnlyMemorySequence<T> Slice(SequencePositionSlim start, SequencePositionSlim end)
+        public ReadOnlyMemorySequence<T> Slice(SlimSequencePosition start, SlimSequencePosition end)
         {
             AssertPosition(start, out _, out var positionInSequence);
             AssertPosition(end, out _, out _, true);
             return positionInSequence == 0 ? SliceInternalByEnd(end) : SliceInternal(start, end);
         }
 
-        private ReadOnlyMemorySequence<T> SliceInternal(SequencePositionSlim start)
+        private ReadOnlyMemorySequence<T> SliceInternal(SlimSequencePosition start)
         {
             var position = start;
             var segmentPosition = position.SegmentPosition;
@@ -338,7 +358,7 @@ namespace ModernMemory.Buffers
             return new(newSegments, index, endIndex);
         }
 
-        private ReadOnlyMemorySequence<T> SliceInternal(SequencePositionSlim start, SequencePositionSlim end)
+        private ReadOnlyMemorySequence<T> SliceInternal(SlimSequencePosition start, SlimSequencePosition end)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(end, start);
             if (end == start) return Empty;
@@ -350,7 +370,7 @@ namespace ModernMemory.Buffers
             return new(newSegments, headIndex, lastIndex);
         }
 
-        private ReadOnlyMemorySequence<T> SliceInternalByEnd(SequencePositionSlim end)
+        private ReadOnlyMemorySequence<T> SliceInternalByEnd(SlimSequencePosition end)
         {
             var position = end;
             var segmentPosition = position.SegmentPosition;
@@ -359,7 +379,7 @@ namespace ModernMemory.Buffers
             return new(newSegments, firstIndex, index);
         }
 
-        public bool TryGet(SequencePositionSlim position, out ReadOnlyNativeMemory<T> memory, out SequencePositionSlim newPosition)
+        public bool TryGet(SlimSequencePosition position, out ReadOnlyNativeMemory<T> memory, out SlimSequencePosition newPosition)
         {
             Unsafe.SkipInit(out memory);
             Unsafe.SkipInit(out newPosition);
@@ -419,7 +439,9 @@ namespace ModernMemory.Buffers
                 {
                     var span = sequence.segments.Span;
                     if (++segmentIndex >= span.Length) return false;
-                    currentMemory = span[segmentIndex].Memory;
+                    var memory = span.ElementAtUnchecked(segmentIndex).Memory;
+                    if (segmentIndex == span.Length - 1) memory = memory.Slice(0, sequence.endIndex);
+                    currentMemory = memory;
                     i = 0;
                 }
                 index = i;
@@ -434,7 +456,9 @@ namespace ModernMemory.Buffers
                     var ss = s.segments.Span;
                     var c = ss[0];
                     segmentIndex = 0;
-                    currentMemory = c.Memory;
+                    var memory = c.Memory;
+                    if (ss.Length == 1) memory = memory.Slice(0, s.endIndex);
+                    currentMemory = memory;
                     index = s.firstIndex - 1;
                 }
             }

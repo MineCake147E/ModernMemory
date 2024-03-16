@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -11,7 +12,7 @@ namespace ModernMemory.Buffers.DataFlow
 {
     public ref struct DataWriter<T, TBufferWriter> where TBufferWriter : IBufferWriter<T>
     {
-        private readonly ref TBufferWriter writer;
+        private ref TBufferWriter writer;
         private NativeSpan<T> buffer;
         private nuint elementsInBuffer;
         private nuint elementsToWrite;
@@ -137,7 +138,7 @@ namespace ModernMemory.Buffers.DataFlow
             ArgumentOutOfRangeException.ThrowIfGreaterThan(count, buffer.Length);
             elementsInBuffer += count;
             buffer = buffer.Slice(count);
-            if (HasBufferWriter && IsLengthConstrained)
+            if (IsLengthConstrained)
             {
                 ArgumentOutOfRangeException.ThrowIfGreaterThan(count, elementsToWrite);
                 elementsToWrite -= count;
@@ -166,10 +167,56 @@ namespace ModernMemory.Buffers.DataFlow
             return values.Length - vs.Length;
         }
 
+        public SlimSequencePosition WriteAtMost(ReadOnlySequenceSlim<T> sequence, nuint offset = 0)
+        {
+            var pos = sequence.Start;
+            if (offset > 0)
+            {
+                pos = sequence.GetPosition(offset);
+            }
+            if (IsCompleted) return pos;
+            var cp = pos;
+            while (sequence.TryGet(pos, out var m, out pos))
+            {
+                var s = m.Span;
+                var w = WriteAtMost(s);
+                if (IsCompleted)
+                {
+                    return sequence.GetPosition(w, cp);
+                }
+                Debug.Assert(s.Length == w);
+                cp = pos;
+            }
+            return sequence.End;
+        }
+
+        public SequencePosition WriteAtMost(ReadOnlySequence<T> sequence, long offset = 0)
+        {
+            var pos = sequence.Start;
+            if (offset > 0)
+            {
+                pos = sequence.GetPosition(offset);
+            }
+            if (IsCompleted) return pos;
+            var cp = pos;
+            while (sequence.TryGet(ref pos, out var m))
+            {
+                var s = m.Span;
+                var w = WriteAtMost(s);
+                if (IsCompleted)
+                {
+                    return sequence.GetPosition(w, cp);
+                }
+                Debug.Assert(s.Length == w);
+                cp = pos;
+            }
+            return sequence.End;
+        }
+
         public void Dispose()
         {
             Flush();
-            writer = Unsafe.NullRef<TBufferWriter>();
+            writer = ref Unsafe.NullRef<TBufferWriter>();
             elementsToWrite = 0;
         }
     }
@@ -177,6 +224,25 @@ namespace ModernMemory.Buffers.DataFlow
     public static class DataWriter
     {
         public static DataWriter<T, DummyBufferWriter<T>> CreateFrom<T>(NativeSpan<T> span) => new(span);
+
+        public static DataWriter<T, DummyBufferWriter<T>> CreateFrom<T>(Span<T> span) => new(span);
+
+        public static DataWriter<T, ArrayBufferWriter<T>> CreateFrom<T>(ref ArrayBufferWriter<T> writer)
+            => new(ref writer);
+        public static DataWriter<T, ArrayBufferWriter<T>> CreateFrom<T>(ref ArrayBufferWriter<T> writer, nuint elementsToWrite)
+            => new(ref writer, elementsToWrite);
+
+        public static DataWriter<byte, PipeWriter> CreateFrom(ref PipeWriter writer)
+            => new(ref writer);
+
+        public static DataWriter<byte, PipeWriter> CreateFrom(ref PipeWriter writer, nuint elementsToWrite)
+            => new(ref writer, elementsToWrite);
+
+        public static DataWriter<T, TBufferWriter> AsDataWriter<T, TBufferWriter>(this ref TBufferWriter writer) where TBufferWriter : struct, IBufferWriter<T>
+            => new(ref writer);
+
+        public static DataWriter<T, TBufferWriter> AsDataWriter<T, TBufferWriter>(this ref TBufferWriter writer, nuint elementsToWrite) where TBufferWriter : struct, IBufferWriter<T>
+            => new(ref writer, elementsToWrite);
 
         public static nuint GetElementsWritten<T>(this in DataWriter<T, DummyBufferWriter<T>> dataWriter)
         {
@@ -207,5 +273,14 @@ namespace ModernMemory.Buffers.DataFlow
             NativeMemory<T> INativeBufferWriter<T>.TryGetNativeMemory(nuint sizeHint) => default;
             NativeSpan<T> INativeBufferWriter<T>.TryGetNativeSpan(nuint sizeHint) => default;
         }
+    }
+
+    public static class DataWriter<T>
+    {
+        public static DataWriter<T, TBufferWriter> CreateFrom<TBufferWriter>(ref TBufferWriter writer) where TBufferWriter : IBufferWriter<T>
+            => new(ref writer);
+
+        public static DataWriter<T, TBufferWriter> CreateFrom<TBufferWriter>(ref TBufferWriter writer, nuint elementsToWrite) where TBufferWriter : IBufferWriter<T>
+            => new(ref writer, elementsToWrite);
     }
 }
