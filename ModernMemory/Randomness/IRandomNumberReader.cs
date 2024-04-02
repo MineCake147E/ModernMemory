@@ -15,7 +15,7 @@ namespace ModernMemory.Randomness
 {
     public interface IRandomNumberReader
     {
-        void ReadBytes(Span<byte> destination);
+        void ReadBytes(scoped NativeSpan<byte> destination);
 
         byte ReadByte()
         {
@@ -43,6 +43,10 @@ namespace ModernMemory.Randomness
             ReadBytes(dst[^bytes..]);
             return BinaryPrimitives.ReadUInt32LittleEndian(dst) >> 8 * sizeof(uint) - bits;
         }
+        nuint GenerateRange(nuint maxExclusive)
+            => Unsafe.SizeOf<nuint>() == sizeof(ulong) ? (nuint)GenerateRange((ulong)maxExclusive) : GenerateRange((uint)maxExclusive);
+        nuint GenerateRange(nuint minInclusive, nuint maxExclusive) => GenerateRange(maxExclusive - minInclusive) + minInclusive;
+
         ulong GenerateRange(ulong maxExclusive);
         ulong GenerateRange(ulong minInclusive, ulong maxExclusive) => GenerateRange(maxExclusive - minInclusive) + minInclusive;
         uint GenerateRange(uint maxExclusive) => (uint)GenerateRange((ulong)maxExclusive);
@@ -52,14 +56,14 @@ namespace ModernMemory.Randomness
         byte GenerateRange(byte maxExclusive) => (byte)GenerateRange((ulong)maxExclusive);
         byte GenerateRange(byte minInclusive, byte maxExclusive) => (byte)(GenerateRange((byte)(maxExclusive - minInclusive)) + minInclusive);
 
-        void Shuffle<T>(Span<T> values, ReadOnlySpan<T> source)
+        void Shuffle<T>(scoped NativeSpan<T> values, scoped ReadOnlyNativeSpan<T> source)
         {
             source.CopyTo(values);
             Shuffle(values);
         }
-        void Shuffle<T>(Span<T> values);
+        void Shuffle<T>(scoped NativeSpan<T> values);
 
-        bool TryShuffle<T>(Span<T> values, ReadOnlySpan<T> source)
+        bool TryShuffle<T>(scoped NativeSpan<T> values, scoped ReadOnlyNativeSpan<T> source)
         {
             var res = source.TryCopyTo(values);
             if (res) Shuffle(values);

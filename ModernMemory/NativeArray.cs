@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -15,15 +16,18 @@ using ModernMemory.Collections;
 namespace ModernMemory
 {
     /// <summary>
-    /// Represents a native array, that can hold more data than <see cref="Array"/> can.
+    /// Represents a native memory, that can hold more data than <see cref="Array"/> can.
     /// </summary>
     /// <typeparam name="T">The type of items in the <see cref="NativeArray{T}"/>.</typeparam>
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
     [StructLayout(LayoutKind.Sequential)]
-    public sealed unsafe class NativeArray<T> : INativeSpanFactory<T>, IReadOnlyList<T>, ITypedEnumerable<T, NativeArray<T>.Enumerator>
+    public sealed unsafe class NativeArray<T> : INativeSpanFactory<T>, IReadOnlyList<T>, ITypedEnumerable<T, NativeArray<T>.Enumerator>, IDisposable
     {
         private T* head;
         private nuint length;
+        private bool disposedValue;
+
+        // TODO: Refactor the whole thing to implement NativeMemoryManager
 
         /// <summary>
         /// The length of this <see cref="NativeArray{T}"/>.
@@ -32,7 +36,7 @@ namespace ModernMemory
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
             get => length;
-            private set => length = value;
+            private init => length = value;
         }
 
         private readonly byte alignmentExponent;
@@ -93,7 +97,11 @@ namespace ModernMemory
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, length);
             return ref ElementAtUnchecked(index);
         }
-        private ref T ElementAtUnchecked(nuint index) => ref head[index];
+        private ref T ElementAtUnchecked(nuint index)
+        {
+            Debug.Assert(index < Length);
+            return ref head[index];
+        }
 
         /// <summary>
         /// Initializes a new empty instance of the <see cref="NativeArray{T}"/> struct.
@@ -166,22 +174,6 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public ref T GetPinnableReference() => ref *head;
 
-        /// <inheritdoc cref="object.Finalize()"/>
-        ~NativeArray()
-        {
-            unsafe
-            {
-                var len = length;
-                var h = head;
-                var requestedAlignment = RequestedAlignment;
-                if (h is not null && len > 0 && Interlocked.CompareExchange(ref length, 0, len) == len)
-                {
-                    NativeMemoryUtils.FreeInternal(h, len, requestedAlignment);
-                    head = null;
-                }
-            }
-        }
-
         public MemoryHandle Pin(nuint elementIndex)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(elementIndex, Length);
@@ -194,7 +186,7 @@ namespace ModernMemory
         }
         public void Unpin() { }
 
-        internal NativeArray<T> GetNativeSpanFactory() => this;
+        internal NativeArrayNativeMemoryManager<T> GetNativeSpanFactory() => new(this);
 
         public struct Enumerator : IEnumerator<T>
         {
@@ -224,6 +216,40 @@ namespace ModernMemory
         ReadOnlyNativeSpan<T> IReadOnlyNativeSpanFactory<T>.GetReadOnlyNativeSpan() => ReadOnlyNativeSpan;
         ReadOnlyNativeSpan<T> IReadOnlyNativeSpanFactory<T>.CreateReadOnlyNativeSpan(nuint start, nuint length) => ReadOnlyNativeSpan.Slice(start, length);
         ReadOnlyMemory<T> IReadOnlyNativeSpanFactory<T>.GetReadOnlyMemorySegment(nuint start) => throw new NotImplementedException();
+
+        private void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects)
+                }
+
+                var len = length;
+                var h = head;
+                var requestedAlignment = RequestedAlignment;
+                if (h is not null && len > 0 && Interlocked.CompareExchange(ref length, 0, len) == len)
+                {
+                    NativeMemoryUtils.FreeInternal(h, len, requestedAlignment);
+                    head = null;
+                }
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~NativeArray()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 }

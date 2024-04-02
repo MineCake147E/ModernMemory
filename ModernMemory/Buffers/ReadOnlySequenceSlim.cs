@@ -23,10 +23,16 @@ namespace ModernMemory.Buffers
         private readonly nuint lastRunningIndex;
 
         [SkipLocalsInit]
+        public ReadOnlySequenceSlim(ref ReadOnlySequenceSegment<T> segment)
+        {
+            this = new(new ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>>(ref segment));
+        }
+
+        [SkipLocalsInit]
         public ReadOnlySequenceSlim(ReadOnlyNativeMemory<T> memory, ref ReadOnlySequenceSegment<T> segment)
         {
             segment = new ReadOnlySequenceSegment<T>(memory, 0);
-            this = new(new ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>>(ref segment));
+            this = new(ref segment);
         }
 
         [SkipLocalsInit]
@@ -152,6 +158,8 @@ namespace ModernMemory.Buffers
                 return span.ElementAtUnchecked(i);
             }
         }
+
+        public nuint SegmentCount => segments.Length;
 
         public bool IsEmpty => Length == 0;
         public bool IsSingleSegment => segments.Length == 1;
@@ -367,7 +375,25 @@ namespace ModernMemory.Buffers
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public bool TryGet(nuint segmentPosition, out ReadOnlyNativeMemory<T> memory, out SlimSequencePosition newPosition)
+        public bool TryGetSegmentAt(nuint segmentPosition, out ReadOnlyNativeMemory<T> memory)
+        {
+            Unsafe.SkipInit(out memory);
+            var index = (nuint)0;
+            var s = segments;
+            if (segmentPosition >= s.Length) return false;
+            var ss = s.ElementAtUnchecked(segmentPosition);
+            var newMemory = ss.Memory;
+            if (segmentPosition == s.Length - 1)
+            {
+                newMemory = newMemory.Slice(0, endIndex);
+            }
+            if (index >= newMemory.Length) return false;
+            memory = newMemory.Slice(index);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public bool TryGetSegmentAt(nuint segmentPosition, out ReadOnlyNativeMemory<T> memory, out SlimSequencePosition newPosition)
         {
             Unsafe.SkipInit(out memory);
             Unsafe.SkipInit(out newPosition);
@@ -383,7 +409,7 @@ namespace ModernMemory.Buffers
             if (index >= newMemory.Length) return false;
             memory = newMemory.Slice(index);
             var pos = new SlimSequencePosition(++segmentPosition, 0);
-            if (segmentPosition == s.Length) pos = End;
+            if (segmentPosition >= s.Length) pos = End;
             newPosition = pos;
             return true;
         }
@@ -461,9 +487,17 @@ namespace ModernMemory.Buffers
             }
         }
 
-        public ref struct SegmentList
+        public readonly SegmentList GetSegmentsEnumerable() => new(this);
+
+        public readonly ref struct SegmentList
         {
-            private ReadOnlySequenceSlim<T> sequence;
+            private readonly ReadOnlySequenceSlim<T> sequence;
+
+            internal SegmentList(ReadOnlySequenceSlim<T> sequence)
+            {
+                this.sequence = sequence;
+            }
+
             public readonly ReadOnlyNativeMemory<T> this[nuint segmentIndex]
             {
                 get
@@ -478,6 +512,8 @@ namespace ModernMemory.Buffers
                 }
             }
 
+            public SegmentEnumerator GetEnumerator() => new(sequence);
+
             public ref struct SegmentEnumerator
             {
                 private ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>> segments;
@@ -485,7 +521,12 @@ namespace ModernMemory.Buffers
                 private readonly nuint firstIndex;
                 private readonly nuint endIndex;
 
-                public SegmentEnumerator(ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>> segments, nuint firstIndex, nuint endIndex)
+                internal SegmentEnumerator(ReadOnlySequenceSlim<T> sequence)
+                {
+                    this = new(sequence.segments, sequence.firstIndex, sequence.endIndex);
+                }
+
+                internal SegmentEnumerator(ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>> segments, nuint firstIndex, nuint endIndex)
                 {
                     this.segments = segments;
                     this.firstIndex = firstIndex;
@@ -538,7 +579,7 @@ namespace ModernMemory.Buffers
                 owner = default;
                 return new(segments.GetHeadReadOnlySpan());
             }
-            var array = new PooledArray<ReadOnlySequenceSegment<T>>(segments.Length);
+            var array = new ArrayOwner<ReadOnlySequenceSegment<T>>(segments.Length);
             var span = array.Span.Slice(0, segments.Length);
             nuint runningIndex = 0;
             for (nuint i = 0; i < span.Length; i++)

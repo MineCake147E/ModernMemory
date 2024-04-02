@@ -9,7 +9,7 @@ using ModernMemory.Allocation;
 
 namespace ModernMemory.Buffers
 {
-    internal sealed class SharedNativeMemoryPool<T> : NativeMemoryPool<T>
+    internal sealed class SharedNativeMemoryPool<T> : NativeMemoryPool<T>, IDisposable
     {
         public override nuint MaxNativeBufferSize => NativeMemoryUtils.MaxSizeForType<T>();
 
@@ -24,5 +24,7 @@ namespace ModernMemory.Buffers
         public override IMemoryOwner<T> Rent(int minBufferSize = -1) => MemoryPool<T>.Shared.Rent(minBufferSize);
         public override INativeMemoryOwner<T> RentWithDefaultSize() => MemoryPool<T>.Shared.Rent().AsNativeMemoryOwner();
         protected override void Dispose(bool disposing) { } // Shared pool shouldn't do anything in Dispose().
+
+        void IDisposable.Dispose() { }
     }
 }

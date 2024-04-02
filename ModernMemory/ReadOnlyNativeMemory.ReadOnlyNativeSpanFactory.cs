@@ -9,7 +9,7 @@ namespace ModernMemory
     {
         internal readonly struct ReadOnlyNativeSpanFactory : IReadOnlyNativeSpanFactory<T>
         {
-            private readonly IReadOnlyNativeSpanFactory<T>? nativeSpanFactory;
+            private readonly NativeMemoryManager<T>? nativeSpanFactory;
             private readonly ReadOnlyMemory<T> memory;
 
             public ReadOnlyNativeSpanFactory(ReadOnlyMemory<T> memory)
@@ -19,33 +19,24 @@ namespace ModernMemory
             }
 
             [SkipLocalsInit]
-            public ReadOnlyNativeSpanFactory(IReadOnlyNativeSpanFactory<T> readOnlyNativeSpanFactory)
+            public ReadOnlyNativeSpanFactory(NativeMemoryManager<T> readOnlyNativeSpanFactory)
             {
                 ArgumentNullException.ThrowIfNull(readOnlyNativeSpanFactory);
-                if (readOnlyNativeSpanFactory is ReadOnlyNativeSpanFactory factory)
-                {
-                    this = factory;
-                }
-                else if(readOnlyNativeSpanFactory is NativeMemory<T>.NativeSpanFactory factory1)
-                {
-                    this = new(factory1);
-                }
-                else
-                {
-                    nativeSpanFactory = readOnlyNativeSpanFactory;
-                    memory = default;
-                }
+                nativeSpanFactory = readOnlyNativeSpanFactory;
+                memory = default;
             }
 
             public ReadOnlyNativeSpanFactory(NativeMemory<T>.NativeSpanFactory nativeSpanFactory)
             {
-                this.nativeSpanFactory = nativeSpanFactory.nativeSpanFactory;
+                this.nativeSpanFactory = nativeSpanFactory.manager;
                 memory = nativeSpanFactory.memory;
             }
 
             public bool IsEmpty => nativeSpanFactory is null && memory.IsEmpty;
 
             public nuint Length => nativeSpanFactory is { } factory ? factory.Length : (nuint)memory.Length;
+
+            public ReadOnlyMemory<T> GetHeadMemory() => nativeSpanFactory is { } factory ? factory.Memory : memory;
 
             public ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length)
             {

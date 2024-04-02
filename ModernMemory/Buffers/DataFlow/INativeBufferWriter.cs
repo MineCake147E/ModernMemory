@@ -27,6 +27,12 @@ namespace ModernMemory.Buffers.DataFlow
         /// <remarks>You must request a new buffer after calling <see cref="Advance(nuint)"/> to continue writing more data and cannot write to a previously acquired buffer.</remarks>
         void Advance(nuint count);
 
+        void IBufferWriter<T>.Advance(int count)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+            Advance((nuint)count);
+        }
+
         #region Get*
         /// <summary>
         /// Returns a <see cref="NativeSpan{T}"/> to write to that is at least the requested size (specified by <paramref name="sizeHint"/>).<br/>

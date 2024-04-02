@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers.DataFlow;
+using ModernMemory.Collections;
 
 namespace ModernMemory.Buffers
 {
@@ -15,12 +16,14 @@ namespace ModernMemory.Buffers
     /// <typeparam name="TSequence"></typeparam>
     /// <typeparam name="TSequencePosition"></typeparam>
     /// <typeparam name="TEnumerator"></typeparam>
-    public interface IReadOnlySequenceBuilder<T, TSequence, TSequencePosition, TEnumerator> : IDisposable
+    public interface IGenericReadOnlySequenceBuilder<T, TSequence, TSequencePosition, TEnumerator> : IDisposable
         where TSequence : struct, IReadOnlySequence<T, TSequence, TSequencePosition, TEnumerator>
-        where TSequencePosition : unmanaged, ISequencePosition<TSequencePosition>
+        where TSequencePosition : struct, ISequencePosition<TSequencePosition>
         where TEnumerator : IEnumerator<T>
     {
         TSequence Build();
+
+        nuint CurrentLength { get; }
 
         void Clear();
 
@@ -37,20 +40,8 @@ namespace ModernMemory.Buffers
     /// Designed for use in implementations of <see cref="ISequenceDataReader{T}"/>.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public interface IReadOnlySequenceSlimBuilder<T> : IDisposable
+    public interface IReadOnlyMemorySequenceBuilder<T> : IGenericReadOnlySequenceBuilder<T, ReadOnlyMemorySequence<T>, SlimSequencePosition, ReadOnlyMemorySequence<T>.Enumerator>
     {
-        ReadOnlySequenceSlim<T> Build();
-
-        nuint CurrentLength { get; }
-
-        void Clear();
-
-        nuint AdvanceTo(SlimSequencePosition consumed);
-
-        nuint AdvanceTo(SlimSequencePosition consumed, SlimSequencePosition examined);
-
-        nuint Append(ReadOnlyNativeMemory<T> segment);
-
-        nuint Append(ReadOnlyNativeSpan<ReadOnlyNativeMemory<T>> segments);
+        ReadOnlySequenceSlim<T> BuildSlim();
     }
 }

@@ -11,6 +11,8 @@ namespace ModernMemory.Buffers
     {
         /// <inheritdoc cref="IMemoryOwner{T}.Memory"/>
         NativeMemory<T> NativeMemory { get; }
+
+        NativeSpan<T> Span => NativeMemory.Span;
     }
 
     internal sealed class MemoryOwnerWrapper<T>(IMemoryOwner<T> owner) : INativeMemoryOwner<T>

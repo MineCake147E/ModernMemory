@@ -75,7 +75,7 @@ namespace ModernMemory
         /// <param name="headPointer">The head pointer.</param>
         /// <param name="length">The length.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public unsafe NativeSpan(ref T headPointer, nuint length)
+        public unsafe NativeSpan(ref T headPointer, nuint length = 1)
         {
             head = ref headPointer;
             this.length = length;
@@ -102,8 +102,8 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> object over the entirety of a specified <paramref name="array"/>.
         /// </summary>
-        /// <param name="array">The array from which to create the <see cref="NativeSpan{T}"/> object.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <param name="array">The memory from which to create the <see cref="NativeSpan{T}"/> object.</param>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="NativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -121,8 +121,8 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> object over the entirety of a specified <paramref name="array"/>.
         /// </summary>
-        /// <param name="array">The array from which to create the <see cref="NativeSpan{T}"/> object.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <param name="array">The memory from which to create the <see cref="NativeSpan{T}"/> object.</param>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="NativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -131,11 +131,11 @@ namespace ModernMemory
         }
 
         /// <summary>
-        /// Creates a new <see cref="NativeSpan{T}"/> object that includes a specified number of elements of an array starting at a specified index.
+        /// Creates a new <see cref="NativeSpan{T}"/> object that includes a specified number of elements of an memory starting at a specified index.
         /// </summary>
-        /// <param name="array">The source array.</param>
+        /// <param name="array">The source memory.</param>
         /// <param name="start">The index of the first element to include in the new <see cref="NativeSpan{T}"/>.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="NativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -153,12 +153,12 @@ namespace ModernMemory
         }
 
         /// <summary>
-        /// Creates a new <see cref="NativeSpan{T}"/> object that includes a specified number of elements of an array starting at a specified index.
+        /// Creates a new <see cref="NativeSpan{T}"/> object that includes a specified number of elements of an memory starting at a specified index.
         /// </summary>
-        /// <param name="array">The source array.</param>
+        /// <param name="array">The source memory.</param>
         /// <param name="start">The index of the first element to include in the new <see cref="NativeSpan{T}"/>.</param>
         /// <param name="length">The number of elements to include in the new <see cref="NativeSpan{T}"/>.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="NativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -222,7 +222,11 @@ namespace ModernMemory
 
         /// <inheritdoc cref="Span{T}.this[int]"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public ref T ElementAtUnchecked(nuint index) => ref Unsafe.Add(ref head, index);
+        public ref T ElementAtUnchecked(nuint index)
+        {
+            Debug.Assert(index < Length);
+            return ref Unsafe.Add(ref head, index);
+        }
 
         /// <inheritdoc cref="Span{T}.GetPinnableReference()"/>
         [EditorBrowsable(EditorBrowsableState.Never)]

@@ -59,6 +59,13 @@ namespace ModernMemory.Collections
         TList List { get; } = list;
 
         public void Add(T item) => List.Add(item);
+        public void Add(ReadOnlyNativeSpan<T> items)
+        {
+            for (nuint i = 0; i < items.Length; i++)
+            {
+                List.Add(items[i]);
+            }
+        }
         public void Clear() => List.Clear();
         public bool Contains(T item) => List.Contains(item);
         public IEnumerator<T> GetEnumerator() => List.GetEnumerator();

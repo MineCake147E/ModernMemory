@@ -23,7 +23,7 @@ namespace ModernMemory
         private readonly nuint length;
 
         /// <summary>
-        /// The length of this <see cref="ReadOnlyNativeSpan{T}"/>.
+        /// The copyLength of this <see cref="ReadOnlyNativeSpan{T}"/>.
         /// </summary>
         public nuint Length
         {
@@ -105,7 +105,7 @@ namespace ModernMemory
         /// Initializes a new instance of the <see cref="ReadOnlyNativeSpan{T}"/> struct.
         /// </summary>
         /// <param name="headPointer">The head pointer.</param>
-        /// <param name="length">The length.</param>
+        /// <param name="length">The copyLength.</param>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public unsafe ReadOnlyNativeSpan(ref readonly T headPointer, nuint length)
@@ -118,7 +118,7 @@ namespace ModernMemory
         /// Initializes a new instance of the <see cref="ReadOnlyNativeSpan{T}"/> struct.
         /// </summary>
         /// <param name="headPointer">The head pointer.</param>
-        /// <param name="length">The length.</param>
+        /// <param name="length">The copyLength.</param>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public unsafe ReadOnlyNativeSpan(void* headPointer, nuint length)
@@ -130,8 +130,8 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object over the entirety of a specified <paramref name="array"/>.
         /// </summary>
-        /// <param name="array">The array from which to create the <see cref="ReadOnlyNativeSpan{T}"/> object.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <param name="array">The memory from which to create the <see cref="ReadOnlyNativeSpan{T}"/> object.</param>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="ReadOnlyNativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -148,8 +148,8 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object over the entirety of a specified <paramref name="array"/>.
         /// </summary>
-        /// <param name="array">The array from which to create the <see cref="ReadOnlyNativeSpan{T}"/> object.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <param name="array">The memory from which to create the <see cref="ReadOnlyNativeSpan{T}"/> object.</param>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="ReadOnlyNativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -158,11 +158,11 @@ namespace ModernMemory
         }
 
         /// <summary>
-        /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object that includes a specified number of elements of an array starting at a specified index.
+        /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object that includes a specified number of elements of an memory starting at a specified index.
         /// </summary>
-        /// <param name="array">The source array.</param>
+        /// <param name="array">The source memory.</param>
         /// <param name="start">The index of the first element to include in the new <see cref="ReadOnlyNativeSpan{T}"/>.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="ReadOnlyNativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -178,12 +178,12 @@ namespace ModernMemory
         }
 
         /// <summary>
-        /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object that includes a specified number of elements of an array starting at a specified index.
+        /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> object that includes a specified number of elements of an memory starting at a specified index.
         /// </summary>
-        /// <param name="array">The source array.</param>
+        /// <param name="array">The source memory.</param>
         /// <param name="start">The index of the first element to include in the new <see cref="ReadOnlyNativeSpan{T}"/>.</param>
         /// <param name="length">The number of elements to include in the new <see cref="ReadOnlyNativeSpan{T}"/>.</param>
-        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an array of type <typeparamref name="T"/>.</exception>
+        /// <exception cref="ArrayTypeMismatchException"><typeparamref name="T"/> is a reference type, and <paramref name="array"/> is not an memory of type <typeparamref name="T"/>.</exception>
         /// <remarks>If <paramref name="array"/> is null, this constructor returns a <see langword="null"/> <see cref="ReadOnlyNativeSpan{T}"/>.</remarks>
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -261,7 +261,11 @@ namespace ModernMemory
 
         /// <inheritdoc cref="ReadOnlySpan{T}.this[int]"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public ref readonly T ElementAtUnchecked(nuint index) => ref NativeMemoryUtils.Add(in head, index);
+        public ref readonly T ElementAtUnchecked(nuint index)
+        {
+            Debug.Assert(index < Length);
+            return ref NativeMemoryUtils.Add(in head, index);
+        }
 
         /// <inheritdoc cref="ReadOnlySpan{T}.GetPinnableReference()"/>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -356,13 +360,12 @@ namespace ModernMemory
 
         public nuint CopyAtMostTo(NativeSpan<T> destination, nuint offset = 0)
         {
-            var span = this;
-            if (offset >= span.Length) return 0;
-            span = span.Slice(offset);
-            var dst = destination;
-            if (span.Length > destination.Length) span = span.Slice(0, destination.Length);
-            _ = span.TryCopyTo(dst);
-            return span.Length;
+            var len = Length;
+            if (offset >= len || destination.IsEmpty) return 0;
+            ref readonly var srcHead = ref ElementAtUnchecked(offset);
+            var copyLength = nuint.Min(len - offset, destination.Length);
+            NativeMemoryUtils.MoveMemory(ref destination.Head, in srcHead, copyLength);
+            return copyLength;
         }
 
         public int CopyAtMostTo(Span<T> destination, int offset = 0)
@@ -390,10 +393,7 @@ namespace ModernMemory
             {
                 return false;
             }
-            destination = destination.Slice(0, source.Length);
-            if (Unsafe.AreSame(ref source.head, ref destination.Head)) return true;
-            var length1 = checked(source.Length * (nuint)Unsafe.SizeOf<T>());   // We can't have memory more than nuint.MaxValue bytes in the first place
-            NativeMemoryUtils.MoveMemory(ref Unsafe.As<T, byte>(ref destination.Head), ref Unsafe.As<T, byte>(ref source.head), length1);
+            NativeMemoryUtils.MoveMemory(ref destination.Head, ref source.head, source.Length);
             return true;
         }
 
@@ -401,7 +401,7 @@ namespace ModernMemory
         internal static bool TryCopyTo(ReadOnlyNativeSpan<T> source, Span<T> destination) => destination.IsEmpty || source.IsEmpty
                 ? source.IsEmpty
                 : (nuint)destination.Length >= source.Length
-&& (Unsafe.AreSame(ref source.head, ref MemoryMarshal.GetReference(destination)) || source.FitsInReadOnlySpan && source.GetHeadReadOnlySpan().TryCopyTo(destination));
+                && (Unsafe.AreSame(ref source.head, ref MemoryMarshal.GetReference(destination)) || source.FitsInReadOnlySpan && source.GetHeadReadOnlySpan().TryCopyTo(destination));
 
         /// <summary>
         /// Determines whether the specified <paramref name="left"/> and <paramref name="right"/> shares the same region.

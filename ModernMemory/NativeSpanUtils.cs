@@ -11,7 +11,7 @@ namespace ModernMemory
         internal static NativeSpan<T> Create<T>(ReadOnlySpan<T> span)
         {
             if (span.IsEmpty) return default;
-            // We are allocating a new array, but the Span<TRange> does the same thing.
+            // We are allocating a new memory, but the Span<TRange> does the same thing.
             var a = new T[span.Length];
             span.CopyTo(a);
             return new(a);

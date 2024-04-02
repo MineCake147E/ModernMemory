@@ -1,45 +1,49 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Collections;
 
-namespace ModernMemory.Collections
+namespace ModernMemory
 {
-    public sealed class PooledArray<T> : INativeMemoryOwner<T>
+    public sealed class ArrayOwner<T> : INativeMemoryOwner<T>, INativeIndexable<T>, IMemoryEnumerable<T>, ISpanEnumerable<T>
     {
-        public NativeMemory<T> NativeMemory { get; private set; }
-
+#pragma warning disable IDE0032 // Use auto property
+        private NativeMemory<T> nativeMemory;
+#pragma warning restore IDE0032 // Use auto property
         private INativeMemoryOwner<T>? owner;
         private bool disposedValue;
 
-        public static PooledArray<T> Empty { get; } = new(true);
+        public NativeMemory<T> NativeMemory => nativeMemory;
 
-        public PooledArray(INativeMemoryOwner<T>? owner)
+        public static ArrayOwner<T> Empty { get; } = new(true);
+
+        public ArrayOwner(INativeMemoryOwner<T>? owner)
         {
             Owner = owner;
         }
 
-        public PooledArray(nuint minimumLength)
+        public ArrayOwner(nuint minimumLength)
         {
             Owner = NativeMemoryPool<T>.Shared.Rent(minimumLength);
         }
 
-        private PooledArray(bool empty = false)
+        private ArrayOwner(bool empty = false)
         {
             if (empty)
             {
                 owner = null;
-                NativeMemory = default;
-                disposedValue = true;
-#pragma warning disable S3971 // "GC.SuppressFinalize" should not be called
-                GC.SuppressFinalize(this);
-#pragma warning restore S3971 // "GC.SuppressFinalize" should not be called
+                nativeMemory = default;
+                Dispose();
             }
         }
 
@@ -54,12 +58,15 @@ namespace ModernMemory.Collections
             get => owner;
             set
             {
-                NativeMemory = owner?.NativeMemory ?? default;
+                nativeMemory = owner?.NativeMemory ?? default;
                 owner = value;
             }
         }
 
-        Memory<T> IMemoryOwner<T>.Memory { get; }
+        Memory<T> IMemoryOwner<T>.Memory => owner?.Memory ?? default;
+        nuint ICountable<nuint>.Count => Length;
+
+        public T this[nuint index] { get => Span[index]; set => Span[index] = value; }
 
         private void Dispose(bool disposing)
         {
@@ -68,16 +75,14 @@ namespace ModernMemory.Collections
                 Debug.Assert(disposing || !disposedValue);
                 var span = Span;
                 if (!span.IsEmpty && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                {
                     span.Clear();
-                }
                 Owner?.Dispose();
                 Owner = null;
                 disposedValue = true;
             }
         }
 
-        ~PooledArray()
+        ~ArrayOwner()
         {
             Dispose(disposing: false);
         }
@@ -87,5 +92,8 @@ namespace ModernMemory.Collections
             Dispose(disposing: true);
             GC.SuppressFinalize(this);
         }
+
+        ReadOnlyNativeMemory<T>.Enumerator ITypedEnumerable<T, ReadOnlyNativeMemory<T>.Enumerator>.GetEnumerator() => new(NativeMemory);
+        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(Span);
     }
 }

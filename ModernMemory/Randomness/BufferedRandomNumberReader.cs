@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
 using ModernMemory.Randomness.Permutation;
 
@@ -18,11 +19,11 @@ namespace ModernMemory.Randomness
 {
     public struct BufferedRandomNumberReader<TRandomNumberProvider> : IRandomNumberReader, IRandomNumberProvider where TRandomNumberProvider : IRandomNumberProvider
     {
-        private RingQueue<byte> Buffer { get; }
+        private NativeQueue<byte> Buffer { get; }
 
         private TRandomNumberProvider source;
 
-        public BufferedRandomNumberReader(TRandomNumberProvider provider, int bufferSize = -1, int refillMultiplier = -1) : this()
+        public BufferedRandomNumberReader(TRandomNumberProvider provider, nuint bufferSize = 0, nuint refillMultiplier = 0) : this()
         {
             source = provider;
             var ru = refillMultiplier >= 1 && refillMultiplier > provider.GetUnitsToGenerateAtLeast(64) ? refillMultiplier : provider.GetUnitsToGenerateAtLeast(256);
@@ -30,9 +31,9 @@ namespace ModernMemory.Randomness
             Buffer = new(RefillSize * 2);
         }
 
-        private int RefillSize { get; }
+        private nuint RefillSize { get; }
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        private void EnsureBuffer(int bytes, int refill = -1)
+        private void EnsureBuffer(nuint bytes, nuint refill = 0)
         {
             var bytesToAdd = bytes - Buffer.Count;
             if (bytesToAdd <= 0) return;
@@ -40,14 +41,14 @@ namespace ModernMemory.Randomness
             Refill(bytesToAdd);
         }
 
-        private void Refill(int bytesToAdd)
+        private void Refill(nuint bytesToAdd)
         {
-            var units = source.GetUnitsToGenerateAtLeast((nuint)bytesToAdd);
+            var units = source.GetUnitsToGenerateAtLeast(bytesToAdd);
             source.Generate(Buffer, units);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public void ReadBytes(Span<byte> destination) => Generate(destination);
+        public void ReadBytes(scoped NativeSpan<byte> destination) => Generate(destination);
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         public byte ReadByte()
@@ -111,7 +112,7 @@ namespace ModernMemory.Randomness
         readonly nuint IRandomNumberProvider.GetUnitsToGenerateAtMost(nuint elements) => elements;
 
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public int Generate(Span<byte> destination)
+        public nuint Generate(scoped NativeSpan<byte> destination)
         {
             var dst = destination;
             if (dst.IsEmpty) return 0;
@@ -132,42 +133,85 @@ namespace ModernMemory.Randomness
             }
             return destination.Length;
         }
-        public void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1U) where TBufferWriter : IBufferWriter<byte>
+        public void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1U) where TBufferWriter : class, IBufferWriter<byte>
         {
             ArgumentNullException.ThrowIfNull(bufferWriter);
             var y = units;
-            var buffer = Buffer;
-            if (buffer.Count > 0)
+            if (y == 0) return;
+            if (y == 1)
             {
-                if (y >= (nuint)buffer.Count)
-                {
-                    buffer.DequeueAll(bufferWriter);
-                    y -= (nuint)buffer.Count;
-                }
-                else
-                {
-                    buffer.DequeueRange(bufferWriter, (int)y);
-                    return;
-                }
+                bufferWriter.Write([ReadByte()]);
+                return;
             }
-            var provider = source;
-            var unitSize = provider.GetSizeToGenerateAtLeast(1);
-            while (y > (nuint)unitSize)
+            var dataWriter = DataWriter<byte>.CreateFrom(ref bufferWriter, units);
+            try
             {
-                var e2g = provider.GetSizeToGenerateAtMost(y, out var u2g);
-                provider.Generate(bufferWriter, u2g);
-                y -= e2g;
+                Generate(ref dataWriter);
             }
-            source = provider;
-            Debug.Assert(y <= int.MaxValue);
-            if (y > 0)
+            finally
             {
-                EnsureBuffer((int)y, RefillSize);
-                buffer.DequeueRange(bufferWriter, (int)y);
+                dataWriter.Dispose();
             }
+            return;
         }
 
-        public void Shuffle<T>(Span<T> values)
+        public void Generate<TBufferWriter>(scoped ref TBufferWriter bufferWriter, nuint units = 1U) where TBufferWriter : struct, IBufferWriter<byte>
+        {
+            ArgumentNullException.ThrowIfNull(bufferWriter);
+            var y = units;
+            if (y == 0) return;
+            if (y == 1)
+            {
+                bufferWriter.Write([ReadByte()]);
+                return;
+            }
+            var dataWriter = DataWriter<byte>.CreateFrom(ref bufferWriter, units);
+            try
+            {
+                Generate(ref dataWriter);
+            }
+            finally
+            {
+                dataWriter.Dispose();
+            }
+            return;
+        }
+
+        public void Generate<TBufferWriter>(scoped ref DataWriter<byte, TBufferWriter> dataWriter) where TBufferWriter : IBufferWriter<byte>
+        {
+            var f = dataWriter.TryGetRemainingElementsToWrite(out var y);
+            if (dataWriter.IsCompleted || y == 0 || !f) return;
+            if (y == 1)
+            {
+                dataWriter.WriteAtMost([ReadByte()]);
+                return;
+            }
+            try
+            {
+                var buffer = Buffer;
+                buffer.DequeueRangeAtMost(ref dataWriter);
+                if (!dataWriter.IsCompleted)
+                {
+                    var provider = source;
+                    provider.Generate(ref dataWriter);
+                    source = provider;
+                    f = dataWriter.TryGetRemainingElementsToWrite(out y);
+                    Debug.Assert(f);
+                    if (y > 0)
+                    {
+                        EnsureBuffer(y, RefillSize);
+                        buffer.DequeueRangeAtMost(ref dataWriter);
+                    }
+                }
+            }
+            finally
+            {
+                dataWriter.Dispose();
+            }
+            return;
+        }
+
+        public void Shuffle<T>(scoped NativeSpan<T> values)
         {
             switch (values.Length)
             {
@@ -183,7 +227,7 @@ namespace ModernMemory.Randomness
                     var factorials = MathUtils.Factorials;
                     if ((uint)values.Length < (uint)factorials.Length)
                     {
-                        var f = factorials[values.Length];
+                        var f = factorials[(int)values.Length];
                         if (f > uint.MaxValue)
                         {
                             PermutationUtils.ShuffleAnySmallUInt64(values, GenerateRange(f));
@@ -194,24 +238,22 @@ namespace ModernMemory.Randomness
                         }
                         return;
                     }
-                    ShuffleAnyLarge(ref this, values);
+                    ShuffleAnyLarge(values);
                     return;
             }
         }
 
-        internal static void ShuffleAnyLarge<T>(ref BufferedRandomNumberReader<TRandomNumberProvider> random, Span<T> d)
+        internal void ShuffleAnyLarge<T>(scoped NativeSpan<T> d)
         {
-            var r = random;
             for (var i = d.Length - 1; i > 0; i--)
             {
-                var v = r.GenerateRange((uint)i + 1);
-                Debug.Assert(v < (uint)d.Length);
-                var m = (int)v;
-                ref var l = ref d[m];
-                ref var k = ref d[i];
+                var v = (nuint)GenerateRange(i + 1);
+                Debug.Assert(v < d.Length);
+                var m = v;
+                ref var l = ref d.ElementAtUnchecked(m);
+                ref var k = ref d.ElementAtUnchecked(i);
                 (k, l) = (l, k);
             }
-            random = r;
         }
 
 

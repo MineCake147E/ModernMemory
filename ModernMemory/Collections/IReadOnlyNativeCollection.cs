@@ -8,9 +8,8 @@ using ModernMemory.Buffers;
 
 namespace ModernMemory.Collections
 {
-    public interface IReadOnlyNativeCollection<T> : IEnumerable<T>
+    public interface IReadOnlyNativeCollection<T> : IEnumerable<T>, ICountable<nuint>
     {
-        nuint Count { get; }
         bool Contains(T item) => ((IEnumerable<T>)this).Contains(item);
         bool TryCopyTo(NativeSpan<T> destination)
         {
@@ -25,39 +24,7 @@ namespace ModernMemory.Collections
             return true;
         }
     }
-    public interface INativeCollection<T> : IReadOnlyNativeCollection<T>
+    public interface INativeCollection<T> : IReadOnlyNativeCollection<T>, IAddableCollection<T>, IClearable<T>
     {
-        void Add(T item);
-        void Add(ReadOnlySpan<T> items) => Add((ReadOnlyNativeSpan<T>)items);
-        void Add(ReadOnlyNativeSpan<T> items)
-        {
-            for (nuint i = 0; i < items.Length; i++)
-            {
-                Add(items[i]);
-            }
-        }
-        void Add<TReadOnlyList>(TReadOnlyList items) where TReadOnlyList : IReadOnlyNativeList<T>
-        {
-            for (nuint i = 0; i < items.Count; i++)
-            {
-                Add(items[i]);
-            }
-        }
-        void AddRange<TEnumerable>(TEnumerable collection) where TEnumerable : IEnumerable<T>
-        {
-            foreach (var item in collection)
-            {
-                Add(item);
-            }
-        }
-        void AddList<TReadOnlyList>(TReadOnlyList items) where TReadOnlyList : IReadOnlyList<T>
-        {
-            for (int i = 0; i < items.Count; i++)
-            {
-                Add(items[i]);
-            }
-        }
-        void Clear();
-        bool Remove(T item);
     }
 }

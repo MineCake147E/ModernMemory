@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 namespace ModernMemory.Tests
 {
     [TestFixture]
+    [Parallelizable]
     public partial class NativeMemoryUtilsTests
     {
         private static IEnumerable<int> LengthValues
@@ -196,6 +197,156 @@ namespace ModernMemory.Tests
 #pragma warning restore CA1857 // A constant is expected for the parameter
             Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
         }
+        #endregion
+
+        #region MoveReference
+
+        #region StrongBox
+        private static void PrepareStrongBoxOverlappedMoveTest(int dstSize, out StrongBox<nuint>[] dst, out StrongBox<nuint>[] exp)
+        {
+            dst = new StrongBox<nuint>[dstSize];
+            exp = new StrongBox<nuint>[dstSize];
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            for (int i = 0; i < sE.Length; i++)
+            {
+                sE[i] = new((nuint)i);
+            }
+            sE.CopyTo(sD);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [TestCaseSource(nameof(LengthAndOffsetTestCaseSource))]
+        public void MoveReferenceCopiesStrongBoxesCorrectlyOverlappedPositive(int size, int offset)
+        {
+            var guard = Vector<byte>.Count * 20 + sizeof(ulong) * 6 - 1;
+            var dstSize = size + 2 * guard + offset;
+            PrepareStrongBoxOverlappedMoveTest(dstSize, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            sE.Slice(guard + offset, size).CopyTo(sE.Slice(guard));
+            var sDstActual = sD.Slice(guard);
+            var sSrcActual = sD.Slice(guard + offset, size);
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sSrcActual), (nuint)size, 7);
+            Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
+        }
+
+        [TestCaseSource(nameof(LengthAndOffsetTestCaseSource))]
+        public void MoveReferenceCopiesStrongBoxesCorrectlyOverlappedNegative(int size, int offset)
+        {
+            var guard = Vector<byte>.Count * 20 + sizeof(ulong) * 6 - 1;
+            var dstSize = size + 2 * guard + offset;
+            PrepareStrongBoxOverlappedMoveTest(dstSize, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            sE.Slice(guard, size).CopyTo(sE.Slice(guard + offset));
+            var sDstActual = sD.Slice(guard + offset);
+            var sSrcActual = sD.Slice(guard, size);
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sSrcActual), (nuint)size, 7);
+            Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
+        }
+
+        private static void PrepareStrongBoxNonOverlappedMoveTest(int dstSize, out StrongBox<nuint>[] src, out StrongBox<nuint>[] dst, out StrongBox<nuint>[] exp)
+        {
+            src = new StrongBox<nuint>[dstSize];
+            dst = new StrongBox<nuint>[dstSize];
+            exp = new StrongBox<nuint>[dstSize];
+            var sD = dst.AsSpan();
+            var sS = src.AsSpan();
+            var sE = exp.AsSpan();
+            for (int i = 0; i < sS.Length; i++)
+            {
+                sS[i] = new((nuint)i);
+            }
+            sD.Clear();
+            sS.CopyTo(sE);
+        }
+
+        [TestCaseSource(nameof(LengthTestCaseSource))]
+        public void MoveReferenceCopiesStrongBoxesCorrectlyNoOverlap(int size)
+        {
+            PrepareStrongBoxNonOverlappedMoveTest(size, out var src, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sS = src.AsSpan();
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sD), ref MemoryMarshal.GetReference(sS), (nuint)sS.Length, 7);
+            Assert.That(dst, Is.EqualTo(exp));
+        }
+        #endregion
+
+        #region Memory
+        private static void PrepareMemoryOverlappedMoveTest(int dstSize, out Memory<nuint>[] dst, out Memory<nuint>[] exp)
+        {
+            dst = new Memory<nuint>[dstSize];
+            exp = new Memory<nuint>[dstSize];
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            var array = new nuint[dstSize * 2];
+            for (int i = 0; i < sE.Length; i++)
+            {
+                sE[i] = array.AsMemory(i);
+            }
+            sE.CopyTo(sD);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        [TestCaseSource(nameof(LengthAndOffsetTestCaseSource))]
+        public void MoveReferenceCopiesMemoriesCorrectlyOverlappedPositive(int size, int offset)
+        {
+            var guard = Vector<byte>.Count * 20 + sizeof(ulong) * 6 - 1;
+            var dstSize = size + 2 * guard + offset;
+            PrepareMemoryOverlappedMoveTest(dstSize, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            sE.Slice(guard + offset, size).CopyTo(sE.Slice(guard));
+            var sDstActual = sD.Slice(guard);
+            var sSrcActual = sD.Slice(guard + offset, size);
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sSrcActual), (nuint)size, 7);
+            Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
+        }
+
+        [TestCaseSource(nameof(LengthAndOffsetTestCaseSource))]
+        public void MoveReferenceCopiesMemoriesCorrectlyOverlappedNegative(int size, int offset)
+        {
+            var guard = Vector<byte>.Count * 20 + sizeof(ulong) * 6 - 1;
+            var dstSize = size + 2 * guard + offset;
+            PrepareMemoryOverlappedMoveTest(dstSize, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sE = exp.AsSpan();
+            sE.Slice(guard, size).CopyTo(sE.Slice(guard + offset));
+            var sDstActual = sD.Slice(guard + offset);
+            var sSrcActual = sD.Slice(guard, size);
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sDstActual), ref MemoryMarshal.GetReference(sSrcActual), (nuint)size, 7);
+            Assert.That(sD.ToArray(), Is.EqualTo(sE.ToArray()));
+        }
+
+        private static void PrepareMemoryNonOverlappedMoveTest(int dstSize, out Memory<nuint>[] src, out Memory<nuint>[] dst, out Memory<nuint>[] exp)
+        {
+            src = new Memory<nuint>[dstSize];
+            dst = new Memory<nuint>[dstSize];
+            exp = new Memory<nuint>[dstSize];
+            var sD = dst.AsSpan();
+            var sS = src.AsSpan();
+            var sE = exp.AsSpan();
+            var array = new nuint[dstSize * 2];
+            for (int i = 0; i < sS.Length; i++)
+            {
+                sS[i] = array.AsMemory(i);
+            }
+            sD.Clear();
+            sS.CopyTo(sE);
+        }
+
+        [TestCaseSource(nameof(LengthTestCaseSource))]
+        public void MoveReferenceCopiesMemoriesCorrectlyNoOverlap(int size)
+        {
+            PrepareMemoryNonOverlappedMoveTest(size, out var src, out var dst, out var exp);
+            var sD = dst.AsSpan();
+            var sS = src.AsSpan();
+            NativeMemoryUtils.MoveReference(ref MemoryMarshal.GetReference(sD), ref MemoryMarshal.GetReference(sS), (nuint)sS.Length, 7);
+            Assert.That(dst, Is.EqualTo(exp));
+        }
+        #endregion
+
         #endregion
     }
 }

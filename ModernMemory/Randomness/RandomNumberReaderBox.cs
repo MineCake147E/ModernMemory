@@ -12,7 +12,7 @@ namespace ModernMemory.Randomness
 
         public ref TRandomNumberReader Reader => ref reader;
 
-        public void ReadBytes(Span<byte> destination) => Reader.ReadBytes(destination);
+        public void ReadBytes(NativeSpan<byte> destination) => Reader.ReadBytes(destination);
         public byte ReadByte() => Reader.ReadByte();
         public ulong GenerateBitsUInt64(int bits) => Reader.GenerateBitsUInt64(bits);
         public uint GenerateBitsUInt32(int bits) => Reader.GenerateBitsUInt32(bits);
@@ -24,8 +24,8 @@ namespace ModernMemory.Randomness
         public ushort GenerateRange(ushort minInclusive, ushort maxExclusive) => Reader.GenerateRange(minInclusive, maxExclusive);
         public byte GenerateRange(byte maxExclusive) => Reader.GenerateRange(maxExclusive);
         public byte GenerateRange(byte minInclusive, byte maxExclusive) => Reader.GenerateRange(minInclusive, maxExclusive);
-        public void Shuffle<T>(Span<T> values, ReadOnlySpan<T> source) => Reader.Shuffle(values, source);
-        public void Shuffle<T>(Span<T> values) => Reader.Shuffle(values);
-        public bool TryShuffle<T>(Span<T> values, ReadOnlySpan<T> source) => Reader.TryShuffle(values, source);
+        public void Shuffle<T>(NativeSpan<T> values, ReadOnlyNativeSpan<T> source) => Reader.Shuffle(values, source);
+        public void Shuffle<T>(NativeSpan<T> values) => Reader.Shuffle(values);
+        public bool TryShuffle<T>(NativeSpan<T> values, ReadOnlyNativeSpan<T> source) => Reader.TryShuffle(values, source);
     }
 }

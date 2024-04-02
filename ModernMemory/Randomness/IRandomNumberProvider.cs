@@ -6,22 +6,16 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Buffers.DataFlow;
+
 namespace ModernMemory.Randomness
 {
     public interface IRandomNumberProvider
     {
-        uint GenerateUnit
+        nuint GenerateUnit
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-            get => (uint)GetSizeToGenerateAtLeast(1u);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        int GetSizeToGenerateAtLeast(int elements)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(elements);
-            var r = GetSizeToGenerateAtLeast((nuint)elements);
-            return r > int.MaxValue ? -1 : (int)r;
+            get => GetSizeToGenerateAtLeast(1u);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -36,13 +30,6 @@ namespace ModernMemory.Randomness
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        int GetSizeToGenerateAtMost(int elements)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(elements);
-            return (int)GetSizeToGenerateAtMost((nuint)elements);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         nuint GetSizeToGenerateAtMost(nuint elements);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
@@ -54,27 +41,16 @@ namespace ModernMemory.Randomness
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        int GetUnitsToGenerateAtLeast(int elements)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(elements);
-            return (int)GetUnitsToGenerateAtLeast((nuint)elements);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         nuint GetUnitsToGenerateAtLeast(nuint elements);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        int GetUnitsToGenerateAtMost(int elements)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(elements);
-            return (int)GetUnitsToGenerateAtMost((nuint)elements);
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         nuint GetUnitsToGenerateAtMost(nuint elements);
 
-        int Generate(Span<byte> destination);
+        nuint Generate(scoped NativeSpan<byte> destination);
 
-        void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : IBufferWriter<byte>;
+        void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : class, IBufferWriter<byte>;
+        void Generate<TBufferWriter>(scoped ref TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : struct, IBufferWriter<byte>;
+
+        void Generate<TBufferWriter>(scoped ref DataWriter<byte, TBufferWriter> dataWriter) where TBufferWriter : IBufferWriter<byte>;
     }
 }

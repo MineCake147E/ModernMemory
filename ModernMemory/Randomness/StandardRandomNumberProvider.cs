@@ -6,6 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Buffers.DataFlow;
+
 namespace ModernMemory.Randomness
 {
     public sealed class StandardRandomNumberProvider(Random random) : IRandomNumberProvider
@@ -13,33 +15,59 @@ namespace ModernMemory.Randomness
         private Random Source { get; } = random ?? throw new ArgumentNullException(nameof(random));
 
         private const int BlockSize = 16;
-
         private const int LengthMask = 0x7FFF_FFFF & -BlockSize;
         private const int ShiftBits = 4;
 
         public uint GenerateUnit => BlockSize;
 
-        public int Generate(Span<byte> destination)
+        public nuint Generate(scoped NativeSpan<byte> destination)
         {
-            destination = destination.Slice(0, destination.Length & LengthMask);
-            Source.NextBytes(destination);
-            return destination.Length;
+            destination = destination.Slice(0, destination.Length & (~(nuint)BlockSize + 1));
+            var dw = destination.AsDataWriter();
+            Generate(ref dw);
+            return dw.GetElementsWritten();
         }
 
-        public void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : IBufferWriter<byte>
+        public void Generate<TBufferWriter>(scoped ref TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : struct, IBufferWriter<byte>
         {
             ArgumentNullException.ThrowIfNull(bufferWriter);
-            var y = units;
-            var r = Source;
-            while (y > 0)
+            var dw = DataWriter<byte>.CreateFrom(ref bufferWriter, units);
+            try
             {
-                var d = bufferWriter.GetSpan();
-                if (d.Length < BlockSize) d = bufferWriter.GetSpan(BlockSize);
-                if (y * BlockSize <= int.MaxValue && d.Length > (int)y * BlockSize) d = d.Slice(0, (int)y * BlockSize);
-                d = d.Slice(0, d.Length & LengthMask);
-                r.NextBytes(d);
-                bufferWriter.Advance(d.Length);
-                y -= (uint)d.Length / BlockSize;
+                Generate(ref dw);
+            }
+            finally
+            {
+                dw.Dispose();
+            }
+        }
+
+        public void Generate<TBufferWriter>(TBufferWriter bufferWriter, nuint units = 1) where TBufferWriter : class, IBufferWriter<byte>
+        {
+            ArgumentNullException.ThrowIfNull(bufferWriter);
+            var dw = DataWriter<byte>.CreateFrom(ref bufferWriter, units);
+            try
+            {
+                Generate(ref dw);
+            }
+            finally
+            {
+                dw.Dispose();
+            }
+        }
+
+        public void Generate<TBufferWriter>(scoped ref DataWriter<byte, TBufferWriter> dataWriter) where TBufferWriter : IBufferWriter<byte>
+        {
+            if (dataWriter.IsCompleted || !dataWriter.IsLengthConstrained) return;
+            var r = Source;
+            while (!dataWriter.IsCompleted)
+            {
+                var d = dataWriter.TryGetNativeSpan(BlockSize);
+                if (d.Length < BlockSize) return;
+                var d2 = d.GetHeadSpan();
+                d2 = d2.Slice(0, d2.Length & LengthMask);
+                r.NextBytes(d2);
+                dataWriter.Advance(d.Length);
             }
         }
 

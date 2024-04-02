@@ -14,11 +14,12 @@
   </ItemGroup>
   <Import Project="../T4TransformTargets.targets" />
   <ItemGroup>
-    <PackageReference Include="System.IO.Pipelines" Version="8.0.0-rc.2.23479.6" />
+    <PackageReference Include="System.IO.Pipelines" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Buffers\Async\" />
+    <Folder Include="Collections\Sorting\" />
     <Folder Include="Concurrent\" />
     <Folder Include="NativeSpanFactories\" />
     <Folder Include="Pipelines\Generic\" />

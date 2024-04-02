@@ -31,28 +31,28 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="array"/>.
         /// </summary>
-        /// <typeparam name="T">The type of the array.</typeparam>
+        /// <typeparam name="T">The type of the memory.</typeparam>
         /// <param name="array">The <see cref="Array"/> to convert.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this T[]? array) => new(array);
 
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the portion of the target <paramref name="array"/> beginning at a specified position for a specified length.
         /// </summary>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <param name="array">The target array.</param>
+        /// <typeparam name="T">The type of the memory.</typeparam>
+        /// <param name="array">The target memory.</param>
         /// <param name="start">The index at which to begin the span.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this T[]? array, int start) => new(array, (nuint)start);
 
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the portion of the target <paramref name="array"/> beginning at a specified position for a specified length.
         /// </summary>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <param name="array">The target array.</param>
+        /// <typeparam name="T">The type of the memory.</typeparam>
+        /// <param name="array">The target memory.</param>
         /// <param name="start">The index at which to begin the span.</param>
         /// <param name="length">The number of items in the span.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this T[]? array, int start, int length) => new(array, (nuint)start, (nuint)length);
 
         #endregion
@@ -61,9 +61,9 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="segment"/>.
         /// </summary>
-        /// <typeparam name="T">The type of the array segment.</typeparam>
-        /// <param name="segment">The target array segment.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <typeparam name="T">The type of the memory segment.</typeparam>
+        /// <param name="segment">The target memory segment.</param>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this ArraySegment<T> segment) => new(segment);
 
         #endregion
@@ -72,20 +72,20 @@ namespace ModernMemory
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="array"/>.
         /// </summary>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <param name="array">The array to convert.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <typeparam name="T">The type of the memory.</typeparam>
+        /// <param name="array">The memory to convert.</param>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this NativeArray<T> array) where T : unmanaged
             => array.NativeSpan;
 
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the portion of the target <paramref name="array"/> beginning at a specified position for a specified length.
         /// </summary>
-        /// <typeparam name="T">The type of the array.</typeparam>
-        /// <param name="array">The target array.</param>
+        /// <typeparam name="T">The type of the memory.</typeparam>
+        /// <param name="array">The target memory.</param>
         /// <param name="start">The index at which to begin the span.</param>
         /// <param name="length">The number of items in the span.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the array.</returns>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this NativeArray<T> array, nuint start, nuint length) where T : unmanaged
             => array.NativeSpan.Slice(start, length);
         #endregion

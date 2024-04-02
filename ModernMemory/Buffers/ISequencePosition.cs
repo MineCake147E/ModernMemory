@@ -9,7 +9,7 @@ namespace ModernMemory.Buffers
 {
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public interface ISequencePosition<TSelf> : IEquatable<TSelf>
-        where TSelf : unmanaged, ISequencePosition<TSelf>
+        where TSelf : struct, ISequencePosition<TSelf>
     {
     }
 }

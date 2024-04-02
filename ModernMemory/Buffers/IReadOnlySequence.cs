@@ -11,7 +11,7 @@ namespace ModernMemory.Buffers
 {
     public interface IReadOnlySequence<T, TSelf, TSequencePosition, TEnumerator> : ITypedEnumerable<T, TEnumerator>, ISliceable<TSelf, nuint>
         where TSelf : struct, IReadOnlySequence<T, TSelf, TSequencePosition, TEnumerator>
-        where TSequencePosition : unmanaged, ISequencePosition<TSequencePosition>
+        where TSequencePosition : struct, ISequencePosition<TSequencePosition>
         where TEnumerator : IEnumerator<T>
     {
         static virtual TSelf Empty => default;
@@ -38,6 +38,21 @@ namespace ModernMemory.Buffers
         TSequencePosition GetPosition(nuint offset);
         /// <inheritdoc cref="ReadOnlySequence{T}.GetPosition(long, SequencePosition)"/>
         TSequencePosition GetPosition(nuint offset, TSequencePosition origin);
+
+        nuint GetSegmentAlignedLength(nuint desiredLength, out nuint segments) => GetSegmentAlignedLength(desiredLength, Start, out segments);
+        nuint GetSegmentAlignedLength(nuint desiredLength, TSequencePosition origin, out nuint segments)
+        {
+            nuint seg = 0;
+            nuint sum = 0;
+            var pos = origin;
+            while (sum < desiredLength && TryGet(pos, out var m, out pos))
+            {
+                sum += m.Length;
+                seg++;
+            }
+            segments = seg;
+            return sum;
+        }
 
         TSelf Slice(TSequencePosition start);
         TSelf Slice(nuint start, TSequencePosition end);

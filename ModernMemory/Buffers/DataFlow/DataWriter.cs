@@ -59,6 +59,12 @@ namespace ModernMemory.Buffers.DataFlow
             return !hasBufferWriter;
         }
 
+        public readonly bool TryGetRemainingElementsToWrite(out nuint elements)
+        {
+            elements = elementsToWrite;
+            return IsLengthConstrained;
+        }
+
         public readonly bool TryGetMaxBufferSize(out nuint space)
         {
             if (HasBufferWriter)
@@ -87,7 +93,7 @@ namespace ModernMemory.Buffers.DataFlow
         public NativeSpan<T> TryGetNativeSpan(nuint sizeHint = 0)
         {
             var res = buffer;
-            if (HasBufferWriter)
+            if (HasBufferWriter && (res.Length < sizeHint || res.Length == 0))
             {
                 var isLengthConstrained = IsLengthConstrained;
                 var maxSize = elementsToWrite;
@@ -98,7 +104,9 @@ namespace ModernMemory.Buffers.DataFlow
                 if (res.IsEmpty || sizeHint > res.Length)
                 {
                     if (elementsInBuffer > 0) FlushCore();
-                    res = writer.GetSpan((int)nuint.Min(int.MaxValue, sizeHint));
+                    res = !typeof(TBufferWriter).IsValueType && sizeHint > int.MaxValue && writer is INativeBufferWriter<T> w
+                        ? w.TryGetNativeSpan(sizeHint)
+                        : (NativeSpan<T>)writer.GetSpan((int)nuint.Min(int.MaxValue, sizeHint));
                     if (isLengthConstrained && res.Length > maxSize)
                     {
                         res = res.Slice(0, maxSize);
@@ -145,17 +153,14 @@ namespace ModernMemory.Buffers.DataFlow
             }
         }
 
-        public int WriteAtMost(ReadOnlySpan<T> values) => (int)WriteAtMost(new ReadOnlyNativeSpan<T>(values));
-        public nuint WriteAtMost(ReadOnlyNativeSpan<T> values)
+        public int WriteAtMostSmall(scoped ReadOnlySpan<T> values) => (int)WriteAtMost(new ReadOnlyNativeSpan<T>(values));
+        public nuint WriteAtMost(scoped ReadOnlyNativeSpan<T> values)
         {
             if (values.IsEmpty || IsCompleted) return 0;
             var span = TryGetNativeSpan();
-            if (values.TryCopyTo(span))
-            {
-                Advance(values.Length);
-                return values.Length;
-            }
-            var vs = values;
+            var m = values.CopyAtMostTo(span);
+            Advance(m);
+            var vs = values.Slice(m);
             while (!vs.IsEmpty && !IsCompleted)
             {
                 span = TryGetNativeSpan(vs.Length);
@@ -190,19 +195,15 @@ namespace ModernMemory.Buffers.DataFlow
             return sequence.End;
         }
 
-        public SequencePosition WriteAtMost(ReadOnlySequence<T> sequence, long offset = 0)
+        public SequencePosition WriteAtMost(ReadOnlySequence<T> sequence, SequencePosition offset)
         {
-            var pos = sequence.Start;
-            if (offset > 0)
-            {
-                pos = sequence.GetPosition(offset);
-            }
+            var pos = offset;
             if (IsCompleted) return pos;
             var cp = pos;
             while (sequence.TryGet(ref pos, out var m))
             {
                 var s = m.Span;
-                var w = WriteAtMost(s);
+                var w = WriteAtMostSmall(s);
                 if (IsCompleted)
                 {
                     return sequence.GetPosition(w, cp);
@@ -211,6 +212,16 @@ namespace ModernMemory.Buffers.DataFlow
                 cp = pos;
             }
             return sequence.End;
+        }
+
+        public SequencePosition WriteAtMost(ReadOnlySequence<T> sequence, long offset = 0)
+        {
+            var pos = sequence.Start;
+            if (offset > 0)
+            {
+                pos = sequence.GetPosition(offset);
+            }
+            return IsCompleted ? pos : WriteAtMost(sequence, pos);
         }
 
         public void Dispose()
@@ -237,6 +248,9 @@ namespace ModernMemory.Buffers.DataFlow
 
         public static DataWriter<byte, PipeWriter> CreateFrom(ref PipeWriter writer, nuint elementsToWrite)
             => new(ref writer, elementsToWrite);
+
+        public static DataWriter<T, DummyBufferWriter<T>> AsDataWriter<T>(this NativeSpan<T> span) => new(span);
+        public static DataWriter<T, DummyBufferWriter<T>> AsDataWriter<T>(this Span<T> span) => new(span);
 
         public static DataWriter<T, TBufferWriter> AsDataWriter<T, TBufferWriter>(this ref TBufferWriter writer) where TBufferWriter : struct, IBufferWriter<T>
             => new(ref writer);

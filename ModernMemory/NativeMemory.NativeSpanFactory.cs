@@ -8,7 +8,7 @@ namespace ModernMemory
     {
         internal readonly struct NativeSpanFactory : INativeSpanFactory<T>, IEquatable<NativeSpanFactory>
         {
-            internal readonly INativeSpanFactory<T>? nativeSpanFactory;
+            internal readonly NativeMemoryManager<T>? manager;
             internal readonly Memory<T> memory;
 
             public NativeSpanFactory(Memory<T> memory)
@@ -16,29 +16,22 @@ namespace ModernMemory
                 this.memory = memory;
             }
 
-            public NativeSpanFactory(INativeSpanFactory<T> nativeSpanFactory)
+            public NativeSpanFactory(NativeMemoryManager<T> manager)
             {
-                ArgumentNullException.ThrowIfNull(nativeSpanFactory);
-                if (nativeSpanFactory is NativeSpanFactory factory)
-                {
-                    this = factory;
-                }
-                else
-                {
-                    this.nativeSpanFactory = nativeSpanFactory;
-                    memory = default;
-                }
+                ArgumentNullException.ThrowIfNull(manager);
+                this.manager = manager;
+                memory = default;
             }
 
-            public bool IsEmpty => nativeSpanFactory is null && memory.IsEmpty;
+            public bool IsEmpty => manager is null && memory.IsEmpty;
 
-            public nuint Length => nativeSpanFactory is { } factory ? factory.Length : (nuint)memory.Length;
+            public nuint Length => manager is { } factory ? factory.Length : (nuint)memory.Length;
 
             public ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length)
-                => nativeSpanFactory is { } factory ? factory.CreateReadOnlyNativeSpan(start, length) : new ReadOnlyNativeSpan<T>(memory.Span).Slice(start, length);
+                => manager is { } factory ? factory.CreateReadOnlyNativeSpan(start, length) : new ReadOnlyNativeSpan<T>(memory.Span).Slice(start, length);
             public ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start)
             {
-                if (nativeSpanFactory is { } factory)
+                if (manager is { } factory)
                 {
                     return factory.GetReadOnlyMemorySegment(start);
                 }
@@ -47,7 +40,7 @@ namespace ModernMemory
             }
             public MemoryHandle Pin(nuint elementIndex)
             {
-                if (nativeSpanFactory is { } factory)
+                if (manager is { } factory)
                 {
                     return factory.Pin(elementIndex);
                 }
@@ -56,23 +49,25 @@ namespace ModernMemory
             }
             public MemoryHandle Pin(int elementIndex)
             {
-                if (nativeSpanFactory is { } factory)
+                if (manager is { } factory)
                 {
                     return factory.Pin(elementIndex);
                 }
                 ArgumentOutOfRangeException.ThrowIfNegative(elementIndex);
                 return elementIndex == 0 ? memory.Pin() : memory.Slice(elementIndex).Pin();
             }
-            public void Unpin() => nativeSpanFactory?.Unpin();
+            public void Unpin() => manager?.Unpin();
 
-            public ReadOnlyNativeSpan<T> GetReadOnlyNativeSpan() => nativeSpanFactory is { } factory ? factory.GetReadOnlyNativeSpan() : new(memory.Span);
+            public ReadOnlyNativeSpan<T> GetReadOnlyNativeSpan() => manager is { } factory ? factory.GetReadOnlyNativeSpan() : new(memory.Span);
+
+            public Memory<T> GetHeadMemory() => manager is { } factory ? factory.Memory : memory;
 
             public NativeSpan<T> CreateNativeSpan(nuint start, nuint length)
-                => nativeSpanFactory is { } factory ? factory.CreateNativeSpan(start, length) : new NativeSpan<T>(memory.Span).Slice(start, length);
-            public NativeSpan<T> GetNativeSpan() => nativeSpanFactory is { } factory ? factory.GetNativeSpan() : new(memory.Span);
+                => manager is { } factory ? factory.CreateNativeSpan(start, length) : new NativeSpan<T>(memory.Span).Slice(start, length);
+            public NativeSpan<T> GetNativeSpan() => manager is { } factory ? factory.GetNativeSpan() : new(memory.Span);
             public override bool Equals(object? obj) => obj is NativeSpanFactory factory && Equals(factory);
-            public bool Equals(NativeSpanFactory other) => nativeSpanFactory == other.nativeSpanFactory && memory.Equals(other.memory);
-            public override int GetHashCode() => HashCode.Combine(nativeSpanFactory, memory);
+            public bool Equals(NativeSpanFactory other) => manager == other.manager && memory.Equals(other.memory);
+            public override int GetHashCode() => HashCode.Combine(manager, memory);
 
             public static bool operator ==(NativeSpanFactory left, NativeSpanFactory right) => left.Equals(right);
             public static bool operator !=(NativeSpanFactory left, NativeSpanFactory right) => !(left == right);

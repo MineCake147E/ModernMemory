@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Collections;
 
 namespace ModernMemory
 {
@@ -16,7 +17,7 @@ namespace ModernMemory
     /// </summary>
     /// <typeparam name="T">The type of items in the <see cref="NativeMemory{T}"/>.</typeparam>
     [StructLayout(LayoutKind.Sequential)]
-    public readonly partial struct NativeMemory<T> : IEquatable<NativeMemory<T>>
+    public readonly partial struct NativeMemory<T> : IEquatable<NativeMemory<T>>, ISpanEnumerable<T>, IMemoryEnumerable<T>
     {
         private readonly NativeSpanFactory nativeSpanFactory;
         private readonly nuint start;
@@ -30,7 +31,7 @@ namespace ModernMemory
         #region Constructors
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal NativeMemory(INativeSpanFactory<T>? nativeSpanFactory, nuint start, nuint length)
+        internal NativeMemory(NativeMemoryManager<T>? nativeSpanFactory, nuint start, nuint length)
         {
             if (length > 0 && nativeSpanFactory is not null)
             {
@@ -62,7 +63,7 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public NativeMemory(Memory<T> memory)
         {
-            this = memory.IsEmpty ? default : new(new(memory), 0, (nuint)memory.Length);
+            this = memory.IsEmpty ? default : new(new NativeSpanFactory(memory), 0, (nuint)memory.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -107,7 +108,7 @@ namespace ModernMemory
         public NativeSpan<T> Span
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => nativeSpanFactory is { } factory ? factory.CreateNativeSpan(start, Length) : default;
+            get => nativeSpanFactory.CreateNativeSpan(start, Length);
         }
 
         /// <summary>
@@ -115,7 +116,9 @@ namespace ModernMemory
         /// </summary>
         /// <returns>A handle for the <see cref="NativeMemory{T}"/> object.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe MemoryHandle Pin() => nativeSpanFactory is { } factory ? factory.Pin(start) : default;
+        public unsafe MemoryHandle Pin() => nativeSpanFactory.Pin(start);
+
+        public Memory<T> GetHeadMemory() => nativeSpanFactory.GetHeadMemory();
 
         #region Slice
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -190,6 +193,8 @@ namespace ModernMemory
         /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override int GetHashCode() => HashCode.Combine(nativeSpanFactory, start, Length);
+        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(Span);
+        ReadOnlyNativeMemory<T>.Enumerator ITypedEnumerable<T, ReadOnlyNativeMemory<T>.Enumerator>.GetEnumerator() => new(this);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool operator ==(NativeMemory<T> left, NativeMemory<T> right) => left.Equals(right);
@@ -203,8 +208,7 @@ namespace ModernMemory
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator ReadOnlyNativeMemory<T>(NativeMemory<T> nativeMemory)
-            => new(nativeMemory.nativeSpanFactory, nativeMemory.start, nativeMemory.Length);
-
+            => new(new ReadOnlyNativeMemory<T>.ReadOnlyNativeSpanFactory(nativeMemory.nativeSpanFactory), nativeMemory.start, nativeMemory.Length);
         #endregion
     }
 }

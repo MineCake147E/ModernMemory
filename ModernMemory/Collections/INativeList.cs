@@ -6,8 +6,7 @@ using System.Threading.Tasks;
 
 namespace ModernMemory.Collections
 {
-    public interface INativeList<T> : INativeCollection<T>, IReadOnlyNativeList<T>
+    public interface INativeList<T> : INativeCollection<T>, IReadOnlyNativeList<T>, INativeIndexable<T>
     {
-        new T this[nuint index] { get; set; }
     }
 }

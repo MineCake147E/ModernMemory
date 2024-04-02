@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -8,11 +10,12 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Collections;
 
 namespace ModernMemory
 {
     [StructLayout(LayoutKind.Sequential)]
-    public readonly partial struct ReadOnlyNativeMemory<T>
+    public readonly partial struct ReadOnlyNativeMemory<T> : ISpanEnumerable<T>, IMemoryEnumerable<T>
     {
         private readonly ReadOnlyNativeSpanFactory nativeSpanFactory;
         private readonly nuint start;
@@ -20,7 +23,7 @@ namespace ModernMemory
         public nuint Length { get; }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyNativeMemory(IReadOnlyNativeSpanFactory<T>? nativeSpanFactory, nuint start, nuint length)
+        internal ReadOnlyNativeMemory(NativeMemoryManager<T>? nativeSpanFactory, nuint start, nuint length)
         {
             if (length > 0 && nativeSpanFactory is not null)
             {
@@ -52,7 +55,7 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlyNativeMemory(ReadOnlyMemory<T> memory)
         {
-            this = memory.IsEmpty ? default : new(new(memory), 0, (nuint)memory.Length);
+            this = memory.IsEmpty ? default : new(new ReadOnlyNativeSpanFactory(memory), 0, (nuint)memory.Length);
         }
 
         /// <summary>
@@ -61,7 +64,9 @@ namespace ModernMemory
         public static ReadOnlyNativeMemory<T> Empty
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#pragma warning disable S1168 // Empty arrays and collections should be returned instead of null
             get => default;
+#pragma warning restore S1168 // Empty arrays and collections should be returned instead of null
         }
 
         /// <returns><see langword="true"/> if the read-only rom region is empty (that is, its <see cref="Length"/> is 0); otherwise, <see langword="false"/>.</returns>
@@ -83,6 +88,8 @@ namespace ModernMemory
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe MemoryHandle Pin() => nativeSpanFactory.Pin(start);
+
+        public ReadOnlyMemory<T> GetHeadMemory() => nativeSpanFactory.GetHeadMemory();
 
         public ReadOnlySequence<T> AsReadOnlySequence(long maxElements = long.MaxValue)
         {
@@ -129,7 +136,7 @@ namespace ModernMemory
                 return new(nativeSpanFactory, this.start + start, olen);
             }
             ArgumentOutOfRangeException.ThrowIfGreaterThan(start, currentLength);
-            return default;
+            return Empty;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -142,7 +149,7 @@ namespace ModernMemory
             }
             ArgumentOutOfRangeException.ThrowIfGreaterThan(start, currentLength);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(length, currentLength - start);
-            return default;
+            return Empty;
         }
         #endregion
 
@@ -187,5 +194,28 @@ namespace ModernMemory
         public static implicit operator ReadOnlyNativeMemory<T>(T[] memory) => new(memory);
 
         #endregion
+
+        Enumerator ITypedEnumerable<T, Enumerator>.GetEnumerator() => new(this);
+        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(Span);
+
+        public struct Enumerator : IEnumerator<T>
+        {
+            private ReadOnlyNativeMemory<T> memory;
+            private nuint index;
+            internal Enumerator(ReadOnlyNativeMemory<T> memory)
+            {
+                index = ~(nuint)0;
+                this.memory = memory;
+            }
+
+            public readonly T Current => memory is { } && index < memory.Span.Length ? memory.Span.ElementAtUnchecked(index) : default!;
+
+            readonly object? IEnumerator.Current => Current;
+
+            public void Dispose() => memory = default;
+            [MemberNotNullWhen(true, nameof(Current))]
+            public bool MoveNext() => ++index < memory.Length;
+            public void Reset() => index = ~(nuint)0;
+        }
     }
 }

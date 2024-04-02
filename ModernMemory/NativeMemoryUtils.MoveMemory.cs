@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
@@ -18,6 +19,41 @@ namespace ModernMemory
     public static partial class NativeMemoryUtils
     {
         #region MoveMemory
+
+        /// <summary>
+        /// Copies data from <paramref name="src"/> to <paramref name="dst"/> with specified <paramref name="length"/>.
+        /// </summary>
+        /// <param name="dst">The reference to the destination memory region.</param>
+        /// <param name="src">The reference to the source memory region.</param>
+        /// <param name="length">The length in bytes to copy.</param>
+        /// <typeparam name="T">The type of data to copy.</typeparam>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static void MoveMemory<T>(ref T dst, ref readonly T src, nuint length)
+        {
+            if (length == 0 || Unsafe.AreSame(ref dst, ref Unsafe.AsRef(in src))) return;
+            if (length == 1)
+            {
+                dst = src;
+                return;
+            }
+#if !DEBUG
+            if (length <= int.MaxValue)
+            {
+                var len = (int)length;
+                MemoryMarshal.CreateReadOnlySpan(in src, len).CopyTo(MemoryMarshal.CreateSpan(ref dst, len));
+                return;
+            }
+#endif
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                MoveReference(ref dst, in src, length);
+            }
+            else
+            {
+                var length1 = checked(length * (nuint)Unsafe.SizeOf<T>());   // We can't have memory more than nuint.MaxValue bytes in the first place
+                MoveMemory(ref Unsafe.As<T, byte>(ref dst), in As<T, byte>(in src), length1);
+            }
+        }
 
         /// <summary>
         /// Copies data from <paramref name="src"/> to <paramref name="dst"/> with specified <paramref name="length"/>.
@@ -45,6 +81,33 @@ namespace ModernMemory
                         NativeMemory.Copy(ps, pd, length);
                     }
                 }
+            }
+        }
+
+        internal static void MoveReference<T>(ref T dst, ref readonly T src, nuint length, int chunkSize = int.MaxValue)
+        {
+            var bytes = checked((nuint)Unsafe.SizeOf<T>() * length);
+            var k = Unsafe.ByteOffset(in src, in dst);
+            if ((nuint)k >= bytes)
+            {
+                nuint i = 0;
+                while (i < length)
+                {
+                    var len = (int)nuint.Min((nuint)chunkSize, length - i);
+                    MemoryMarshal.CreateReadOnlySpan(in Add(in src, i), len).CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref dst, i), len));
+                    i += (uint)len;
+                }
+            }
+            else
+            {
+                var pos = length;
+                while (pos > (nuint)chunkSize)
+                {
+                    pos -= (nuint)chunkSize;
+                    MemoryMarshal.CreateReadOnlySpan(in Add(in src, pos), chunkSize).CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref dst, pos), chunkSize));
+                }
+                Debug.Assert(pos <= (nuint)chunkSize);
+                MemoryMarshal.CreateReadOnlySpan(in src, (int)pos).CopyTo(MemoryMarshal.CreateSpan(ref dst, (int)pos));
             }
         }
 
