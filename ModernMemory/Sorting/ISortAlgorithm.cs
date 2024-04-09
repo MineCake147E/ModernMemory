@@ -10,6 +10,7 @@ namespace ModernMemory.Sorting
 {
     public interface ISortAlgorithm
     {
-        static abstract void Sort<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>;
+        static virtual bool IsStableByDefault => false;
+        static abstract void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>;
     }
 }

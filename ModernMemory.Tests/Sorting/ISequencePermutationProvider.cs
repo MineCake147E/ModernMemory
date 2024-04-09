@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,5 +32,10 @@ namespace ModernMemory.Tests.Sorting
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)parameter, (uint)destination.Length);
             AdaptiveOptimizedGrailSort.Rotate(ref MemoryMarshal.GetReference(destination), (nuint)parameter, (nuint)(destination.Length - parameter));
         }
+    }
+
+    public readonly struct RandomPermutationProvider : ISequencePermutationProvider<int>
+    {
+        public static void Permute<T>(Span<T> destination, int parameter) => RandomNumberGenerator.Shuffle(destination);
     }
 }

@@ -25,6 +25,7 @@ namespace ModernMemory
         /// <param name="span">The <see cref="Span{T}"/> to convert.</param>
         /// <returns>The <see cref="NativeSpan{T}"/> representation of the <paramref name="span"/>.</returns>
         public static NativeSpan<T> AsNativeSpan<T>(this Span<T> span) => new(span);
+
         #endregion
 
         #region Array
@@ -100,6 +101,17 @@ namespace ModernMemory
 
         public static ReadOnlyNativeSpan<char> AsNativeSpan(this string text, Range range) => new(text.AsSpan(range));
         #endregion
+
+        #endregion
+
+        #region AsReadOnlyNativeSpan
+        /// <summary>
+        /// Creates a new <see cref="ReadOnlyNativeSpan{T}"/> over the target <paramref name="span"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the span.</typeparam>
+        /// <param name="span">The <see cref="Span{T}"/> to convert.</param>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the <paramref name="span"/>.</returns>
+        public static ReadOnlyNativeSpan<T> AsReadOnlyNativeSpan<T>(this ReadOnlySpan<T> span) => new(span);
 
         #endregion
 
