@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -10,6 +11,8 @@ using System.Threading.Tasks;
 
 using ModernMemory.Sorting;
 using ModernMemory.Utils;
+
+using static System.Reflection.Metadata.BlobBuilder;
 
 namespace ModernMemory.Tests.Sorting
 {
@@ -566,6 +569,151 @@ namespace ModernMemory.Tests.Sorting
                     Assert.That(sbb.ToArray(), Is.Ordered);
                     sar = sar.Slice(sbb.Length);
                 }
+            });
+        }
+
+        private static IEnumerable<(int blockSizeExponent, int size)> GenerateSortBlocksSizeValues()
+            => [(3, 63), (3, 64), (3, 65), (3, 72), (4, 1024), (3, 127)];
+
+        private static IEnumerable<TestCaseData> SortBlocksTestCaseSource()
+            => GenerateSortBlocksSizeValues().SelectMany<(int blockSizeExponent, int size), TestCaseData>(b =>
+            [
+                new TestCaseData(b.blockSizeExponent, b.size, null) { TypeArgs = [typeof(IdentityPermutationProvider<object>), typeof(object)] },
+                new TestCaseData(b.blockSizeExponent, b.size, null) { TypeArgs = [typeof(ReversePermutationProvider<object>), typeof(object)] },
+                new TestCaseData(b.blockSizeExponent, b.size, 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size / 2) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size / 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, 0) { TypeArgs = [typeof(RandomPermutationProvider), typeof(int)] },
+            ]);
+
+        [TestCaseSource(nameof(SortBlocksTestCaseSource))]
+        public void SortBlocksSortsCorrectlyHead<TSequencePermutationProvider, TParameter>(int blockSizeExponent, int size, TParameter parameter)
+            where TSequencePermutationProvider : ISequencePermutationProvider<TParameter>
+        {
+            var guard = 8;
+            var nSize = (nuint)size;
+            var blockSize = 1 << blockSizeExponent;
+            var keys = size >> blockSizeExponent;
+            var totalSize = guard * 2 + size + keys;
+            var exp = new ulong[totalSize];
+            var se = exp.AsSpan();
+            RandomNumberGenerator.Fill(MemoryMarshal.AsBytes(se));
+            var sek = se.Slice(guard, keys);
+            for (var i = 0; i < sek.Length; i++)
+            {
+                sek[i] = ((ulong)i << 32) | 0xffff_fffful;
+            }
+            sek.Sort();
+            var seq = se.Slice(guard + keys, size);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                seq[i] = ui >> 1;
+            }
+            TSequencePermutationProvider.Permute(seq, parameter);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                var item = (ulong)ui;
+                item |= seq[i] << 32;
+                seq[i] = item;
+            }
+            var subarraySize = unchecked((nuint)nint.MinValue) >> BitOperations.LeadingZeroCount(nSize - 1);
+            seq.Slice(0, (int)subarraySize).Sort();
+            seq.Slice((int)subarraySize).Sort();
+            var act = se.ToArray();
+            var sa = act.AsSpan();
+            var sak = sa.Slice(guard, keys);
+            var sav = sa.Slice(guard + keys, size);
+            AdaptiveOptimizedGrailSort.SortBlocks<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeFalse>
+                (ref sak[0], sav, blockSizeExponent);
+            sak.CopyTo(sek);
+            var ec = seq.ToArray();
+            var sec = ec.AsSpan();
+            for (var i = 0; i < sak.Length; i++)
+            {
+                var block = (int)(sak[i] >> 32);
+                var bp = block << blockSizeExponent;
+                sec.Slice(bp, blockSize).CopyTo(seq.Slice(i << blockSizeExponent));
+            }
+            Assert.Multiple(() =>
+            {
+                Assert.That(act, Is.EqualTo(exp));
+                var sa = act.AsSpan();
+                var sav = sa.Slice(guard + keys, size);
+                var bva = new ulong[size >> blockSizeExponent];
+                var bsa = bva.AsSpan();
+                for (var i = 0; i < bsa.Length; i++)
+                {
+                    bsa[i] = sav[i << blockSizeExponent];
+                }
+                Assert.That(bva, Is.Ordered);
+            });
+        }
+
+        [TestCaseSource(nameof(SortBlocksTestCaseSource))]
+        public void SortBlocksSortsCorrectlyTail<TSequencePermutationProvider, TParameter>(int blockSizeExponent, int size, TParameter parameter)
+            where TSequencePermutationProvider : ISequencePermutationProvider<TParameter>
+        {
+            var guard = 8;
+            var nSize = (nuint)size;
+            var blockSize = 1 << blockSizeExponent;
+            var keys = size >> blockSizeExponent;
+            var totalSize = guard * 2 + size + keys;
+            var exp = new ulong[totalSize];
+            var se = exp.AsSpan();
+            RandomNumberGenerator.Fill(MemoryMarshal.AsBytes(se));
+            var sek = se.Slice(guard, keys);
+            for (var i = 0; i < sek.Length; i++)
+            {
+                sek[i] = ((ulong)i << 32) | 0xffff_fffful;
+            }
+            sek.Sort();
+            var seq = se.Slice(guard + keys, size);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                seq[i] = ui >> 1;
+            }
+            TSequencePermutationProvider.Permute(seq, parameter);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                var item = (ulong)ui;
+                item |= seq[i] << 32;
+                seq[i] = item;
+            }
+            var subarraySize = unchecked((nuint)nint.MinValue) >> BitOperations.LeadingZeroCount(nSize - 1);
+            seq.Slice(0, (int)subarraySize).Sort();
+            seq.Slice((int)subarraySize).Sort();
+            var act = se.ToArray();
+            var sa = act.AsSpan();
+            var sak = sa.Slice(guard, keys);
+            var sav = sa.Slice(guard + keys, size);
+            AdaptiveOptimizedGrailSort.SortBlocks<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeTrue>
+                (ref sak[0], sav, blockSizeExponent);
+            sak.CopyTo(sek);
+            var ec = seq.ToArray();
+            var sec = ec.AsSpan();
+            for (var i = 0; i < sak.Length; i++)
+            {
+                var block = (int)(sak[i] >> 32);
+                var bp = block << blockSizeExponent;
+                sec.Slice(bp, blockSize).CopyTo(seq.Slice(i << blockSizeExponent));
+            }
+            Assert.Multiple(() =>
+            {
+                Assert.That(act, Is.EqualTo(exp));
+                var sa = act.AsSpan();
+                var sav = sa.Slice(guard + keys, size);
+                var bva = new ulong[size >> blockSizeExponent];
+                var bsa = bva.AsSpan();
+                var offset = (1 << blockSizeExponent) - 1;
+                for (var i = 0; i < bsa.Length; i++)
+                {
+                    bsa[i] = sav[(i << blockSizeExponent) + offset];
+                }
+                Assert.That(bva, Is.Ordered);
             });
         }
     }

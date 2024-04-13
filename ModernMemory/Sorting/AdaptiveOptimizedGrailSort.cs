@@ -106,8 +106,8 @@ namespace ModernMemory.Sorting
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        internal static Subarray GetSubarray<T, TProxy>(in T currentKey, T medianKey) where TProxy : IStaticComparisonProxy<T>
-            => TProxy.Compare(in currentKey, medianKey) < 0 ? Subarray.Left : Subarray.Right;
+        internal static Subarray GetSubarray<T, TProxy>(T currentKey, T medianKey) where TProxy : IStaticComparisonProxy<T>
+            => TProxy.Compare(currentKey, medianKey) < 0 ? Subarray.Left : Subarray.Right;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static nuint CalculateBlockSize(nuint length, out nuint blocks)
@@ -424,7 +424,7 @@ namespace ModernMemory.Sorting
                     start += len;
                     k += len;
                     Debug.Assert(start < length);
-                    nint c = TProxy.Compare(NativeMemoryUtils.Add(in head, start), value);
+                    var c = TProxy.Compare(NativeMemoryUtils.Add(in head, start), value);
                     start = (nuint)(c >> ~0);
                     k &= start;
                     start = m + k;
@@ -460,7 +460,7 @@ namespace ModernMemory.Sorting
                     start += len;
                     k += len;
                     Debug.Assert(start < length);
-                    nint c = TProxy.Compare(value, NativeMemoryUtils.Add(in head, start));
+                    var c = TProxy.Compare(value, NativeMemoryUtils.Add(in head, start));
                     start = (nuint)(c >> ~0);
                     k &= ~start;
                     start = m + k;
@@ -488,7 +488,7 @@ namespace ModernMemory.Sorting
                     start += len;
                     k += len;
                     Debug.Assert(start < length);
-                    var c = TProxy.Compare(v, in NativeMemoryUtils.Add(in head, start)) - threshold;
+                    var c = TProxy.Compare(v, NativeMemoryUtils.Add(in head, start)) - threshold;
                     start = (nuint)(c >> ~0);
                     k &= ~start;
                     start = m + k;
@@ -555,7 +555,7 @@ namespace ModernMemory.Sorting
                     ref var lh = ref Unsafe.Add(ref head, left);
                     ref var rh = ref Unsafe.Add(ref head, right);
                     Debug.Assert(left - 2 < length);
-                    if (TProxy.Compare(in lh, in rh) > 0)
+                    if (TProxy.Compare(lh, rh) > 0)
                     {
                         ref var mh = ref rh;
                         rh = ref lh;
@@ -596,10 +596,12 @@ namespace ModernMemory.Sorting
                 sizeAfterMerge = currentLength + currentLength;
                 i = remainingHeadBuffer - currentLength;
                 var mergeEnd = length - sizeAfterMerge - currentLength + 1;
-                Debug.Assert(mergeEnd < length);
-                for (; i < mergeEnd; i += sizeAfterMerge)
+                if (mergeEnd < length)
                 {
-                    MergeForwardsLargeStruct<T, TProxy>(ref Unsafe.Add(ref head, i), currentLength, currentLength, currentLength);
+                    for (; i < mergeEnd; i += sizeAfterMerge)
+                    {
+                        MergeForwardsLargeStruct<T, TProxy>(ref Unsafe.Add(ref head, i), currentLength, currentLength, currentLength);
+                    }
                 }
                 var leftOver = length - i - currentLength;
                 if (leftOver > currentLength)
@@ -644,6 +646,119 @@ namespace ModernMemory.Sorting
             BuildInPlace<T, TProxy>(values, ((nuint)1 << (int)bufferLengthExponent) - 2, 1, bufferLengthExponent);
         }
 
+        internal static void SortBlocks<T, TProxy, TIsBlockValueAtTail>(ref T? keyHead, NativeSpan<T?> values, int blockSizeExponent)
+            where TProxy : IStaticComparisonProxy<T>
+            where TIsBlockValueAtTail : unmanaged, IGenericBoolParameter<TIsBlockValueAtTail>
+        {
+            var bse = blockSizeExponent;
+            var blocks = values.Length >> bse;
+            ArgumentOutOfRangeException.ThrowIfZero(blocks);
+            var leftBlockCount = unchecked((nuint)nint.MinValue) >> BitOperations.LeadingZeroCount(blocks - 1);
+            var keys = new NativeSpan<T?>(ref keyHead, blocks);
+            nuint blockIndex = 0;
+            nuint keyIndex = 0;
+            var rightBlockIndex = leftBlockCount << bse;
+            var rightKeyIndex = leftBlockCount;
+            var blockSize = (nuint)1 << bse;
+            var blockValuePos = TIsBlockValueAtTail.Value ? blockSize - 1 : 0;
+            ref var head = ref values[0];
+
+            var sorted = true;
+            var rightHeadBlockValue = Unsafe.Add(ref head, rightBlockIndex + blockValuePos);
+            do
+            {
+                Debug.Assert(blockIndex + blockValuePos < values.Length);
+                if (TProxy.Compare(rightHeadBlockValue, Unsafe.Add(ref head, blockIndex + blockValuePos)) < 0)
+                {
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref keyHead, rightKeyIndex), 1);
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref head, blockIndex), ref Unsafe.Add(ref head, rightBlockIndex), blockSize);
+                    sorted = false;
+                }
+                keyIndex++;
+                blockIndex = keyIndex << bse;
+            } while (sorted && keyIndex < rightKeyIndex);
+            if (sorted) return;
+
+            var lastKey = blocks - 1;
+            var scrambledEnd = rightKeyIndex + 1;
+            if (rightKeyIndex >= lastKey) scrambledEnd = rightKeyIndex;
+
+            while (keyIndex < rightKeyIndex)
+            {
+                Debug.Assert(scrambledEnd + 1 <= blocks);
+                Debug.Assert(rightKeyIndex <= scrambledEnd + 1);
+                var selectedKey = FindBlock(ref Unsafe.Add(ref keyHead, rightKeyIndex), ref Unsafe.Add(ref head, rightKeyIndex << bse), scrambledEnd + 1 - rightKeyIndex, bse) + rightKeyIndex;
+                var selectedBlock = selectedKey << bse;
+                if (keyIndex != selectedKey)
+                {
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref keyHead, selectedKey), 1);
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref head, blockIndex), ref Unsafe.Add(ref head, selectedBlock), blockSize);
+                }
+                if (selectedKey == scrambledEnd && scrambledEnd < lastKey)
+                {
+                    scrambledEnd++;
+                }
+                keyIndex++;
+                blockIndex = keyIndex << bse;
+            }
+            Debug.Assert(scrambledEnd + 1 <= blocks);
+
+            while (scrambledEnd < lastKey)
+            {
+                Debug.Assert(keyIndex <= scrambledEnd + 1);
+                var selectedKey = FindBlock(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref head, blockIndex), scrambledEnd + 1 - keyIndex, bse) + keyIndex;
+                var selectedBlock = selectedKey << bse;
+                if (keyIndex != selectedKey)
+                {
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref keyHead, selectedKey), 1);
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref head, blockIndex), ref Unsafe.Add(ref head, selectedBlock), blockSize);
+                    if (selectedKey == scrambledEnd)
+                    {
+                        scrambledEnd++;
+                    }
+                }
+                keyIndex++;
+                blockIndex = keyIndex << bse;
+                if (keyIndex == scrambledEnd) return;
+            }
+
+            do
+            {
+                Debug.Assert(keyIndex <= scrambledEnd + 1);
+                var selectedKey = FindBlock(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref head, blockIndex), lastKey + 1 - keyIndex, bse) + keyIndex;
+                var selectedBlock = selectedKey << bse;
+                if (keyIndex != selectedKey)
+                {
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref keyHead, keyIndex), ref Unsafe.Add(ref keyHead, selectedKey), 1);
+                    NativeMemoryUtils.SwapValues(ref Unsafe.Add(ref head, blockIndex), ref Unsafe.Add(ref head, selectedBlock), blockSize);
+                }
+                keyIndex++;
+                blockIndex = keyIndex << bse;
+            } while (keyIndex < lastKey);
+            _ = keys;
+
+            static nuint FindBlock(ref T? keyHead, ref T? head, nuint keyLength, int blockSizeExponent)
+            {
+                var bse = blockSizeExponent;
+                var blockSize = (nuint)1 << bse;
+                nuint selectedKey = 0;
+                nuint selectedBlock = 0;
+                var currentKey = selectedKey + 1;
+                var currentBlock = selectedBlock + blockSize;
+                var keyTail = keyLength;
+                var blockValuePos = TIsBlockValueAtTail.Value ? blockSize - 1 : 0;
+                for (; currentKey < keyTail; currentKey++, currentBlock += blockSize)
+                {
+                    var c = TProxy.Compare(Unsafe.Add(ref head, currentBlock + blockValuePos), Unsafe.Add(ref head, selectedBlock + blockValuePos));
+                    if (c > 0) continue;
+                    if (c == 0 && TProxy.Compare(Unsafe.Add(ref keyHead, currentKey), Unsafe.Add(ref keyHead, selectedKey)) >= 0) continue;
+                    selectedBlock = currentBlock;
+                    selectedKey = currentKey;
+                }
+                return selectedKey;
+            }
+        }
+
         internal static void MergeForwardsLargeStruct<T, TProxy>(ref T bufferHead, nuint bufferLength, nuint leftLength, nuint rightLength) where TProxy : IStaticComparisonProxy<T>
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(bufferLength, nuint.Max(leftLength, rightLength));
@@ -659,7 +774,7 @@ namespace ModernMemory.Sorting
                 ref var rB = ref Unsafe.Add(ref bufferHead, buffer);
                 ref var rL = ref Unsafe.Add(ref head, left);
                 ref var rR = ref Unsafe.Add(ref head, right);
-                if (TProxy.Compare(in rL, in rR) > 0)
+                if (TProxy.Compare(rL, rR) > 0)
                 {
                     (rB, rR) = (rR, rB);
                     right++;
@@ -697,7 +812,7 @@ namespace ModernMemory.Sorting
                 ref var rB = ref Unsafe.Add(ref head, buffer);
                 ref var rL = ref Unsafe.Add(ref head, left);
                 ref var rR = ref Unsafe.Add(ref head, ro);
-                if (TProxy.Compare(in rL, in rR) > 0)
+                if (TProxy.Compare(rL, rR) > 0)
                 {
                     (rB, rL) = (rL, rB);
                     left--;
@@ -738,7 +853,7 @@ namespace ModernMemory.Sorting
                 ref var rB = ref Unsafe.Add(ref bufferHead, buffer);
                 ref var rL = ref Unsafe.Add(ref head, left);
                 ref var rR = ref Unsafe.Add(ref head, right);
-                if (TProxy.Compare(in rL, in rR) < threshold)
+                if (TProxy.Compare(rL, rR) < threshold)
                 {
                     (rB, rL) = (rL, rB);
                     left++;
@@ -778,7 +893,7 @@ namespace ModernMemory.Sorting
                 ref var rB = ref Unsafe.Add(ref head, buffer);
                 ref var rL = ref Unsafe.Add(ref head, left);
                 ref var rR = ref Unsafe.Add(ref head, ro);
-                if (TProxy.Compare(in rL, in rR) >= threshold)
+                if (TProxy.Compare(rL, rR) >= threshold)
                 {
                     (rB, rL) = (rL, rB);
                     left--;
@@ -815,7 +930,7 @@ namespace ModernMemory.Sorting
             var leftLen = leftLength;
             var rightLen = rightLength;
             var threshold = leftOrigin == Subarray.Right ? 0 : 1;
-            if (leftLen > 0 && TProxy.Compare(in Unsafe.Add(ref head, middle - 1), in Unsafe.Add(ref head, middle)) >= threshold)
+            if (leftLen > 0 && TProxy.Compare(Unsafe.Add(ref head, middle - 1), Unsafe.Add(ref head, middle)) >= threshold)
             {
                 do
                 {
@@ -840,7 +955,7 @@ namespace ModernMemory.Sorting
                     {
                         start++;
                         leftLen--;
-                    } while (leftLen > 0 && TProxy.Compare(in Unsafe.Add(ref head, start), in rm) < threshold);
+                    } while (leftLen > 0 && TProxy.Compare(Unsafe.Add(ref head, start), rm) < threshold);
                 } while (leftLen > 0);
             }
             var condition = rightLen - 1 < rightLength;
@@ -857,14 +972,14 @@ namespace ModernMemory.Sorting
             ref readonly var keyHead = ref keys;
             var nextBlock = blockLength * 2;
             var currentBlockLength = blockLength;
-            var currentBlockOrigin = GetSubarray<T, TProxy>(in keys, medianKey);
+            var currentBlockOrigin = GetSubarray<T, TProxy>(keys, medianKey);
             var ol = values.Length - blockLength + 1;
             nuint blockIndex = 1;
             ArgumentOutOfRangeException.ThrowIfGreaterThan(ol, values.Length);
 
             for (; nextBlock < ol; blockIndex++, nextBlock += blockLength)
             {
-                var nextBlockOrigin = GetSubarray<T, TProxy>(in NativeMemoryUtils.Add(in keyHead, blockIndex), medianKey);
+                var nextBlockOrigin = GetSubarray<T, TProxy>(NativeMemoryUtils.Add(in keyHead, blockIndex), medianKey);
                 var buffer = nextBlock - blockLength - currentBlockLength;
                 Debug.Assert(nextBlock + blockLength <= values.Length);
                 Debug.Assert(buffer < values.Length);
@@ -912,7 +1027,7 @@ namespace ModernMemory.Sorting
 
             for (; head < values.Length && blockIndex < keys.Length; blockIndex--, head -= blockLength)
             {
-                var nextBlockOrigin = GetSubarray<T, TProxy>(in keys.ElementAtUnchecked(blockIndex), medianKey);
+                var nextBlockOrigin = GetSubarray<T, TProxy>(keys.ElementAtUnchecked(blockIndex), medianKey);
                 if (nextBlockOrigin != currentBlockOrigin)
                 {
                     (currentBlockOrigin, currentBlockLength) = LocalMergeBackwardsLargeStruct<T, TProxy>(ref values.ElementAtUnchecked(head), blockLength, currentBlockLength, blockLength, currentBlockOrigin);
@@ -927,5 +1042,9 @@ namespace ModernMemory.Sorting
             return (currentBlockOrigin, currentBlockLength);
         }
 
+        internal static void CombineBlocksForwards<T, TProxy>(ref T? keyHead, NativeSpan<T?> values, int subarrayLengthExponent, int blockSizeExponent) where TProxy : IStaticComparisonProxy<T>
+        {
+
+        }
     }
 }
