@@ -593,7 +593,8 @@ namespace ModernMemory.Tests.Sorting
             var guard = 8;
             var nSize = (nuint)size;
             var blockSize = 1 << blockSizeExponent;
-            var keys = size >> blockSizeExponent;
+            var blocks = nSize >> blockSizeExponent;
+            var keys = (int)blocks;
             var totalSize = guard * 2 + size + keys;
             var exp = new ulong[totalSize];
             var se = exp.AsSpan();
@@ -634,7 +635,9 @@ namespace ModernMemory.Tests.Sorting
             {
                 var block = (int)(sak[i] >> 32);
                 var bp = block << blockSizeExponent;
-                sec.Slice(bp, blockSize).CopyTo(seq.Slice(i << blockSizeExponent));
+                var s = sec.Slice(bp);
+                if (s.Length > blockSize) s = s.Slice(0, blockSize);
+                s.CopyTo(seq.Slice(i << blockSizeExponent));
             }
             Assert.Multiple(() =>
             {
@@ -658,7 +661,8 @@ namespace ModernMemory.Tests.Sorting
             var guard = 8;
             var nSize = (nuint)size;
             var blockSize = 1 << blockSizeExponent;
-            var keys = size >> blockSizeExponent;
+            var blocks = nSize >> blockSizeExponent;
+            var keys = (int)blocks;
             var totalSize = guard * 2 + size + keys;
             var exp = new ulong[totalSize];
             var se = exp.AsSpan();
@@ -699,7 +703,9 @@ namespace ModernMemory.Tests.Sorting
             {
                 var block = (int)(sak[i] >> 32);
                 var bp = block << blockSizeExponent;
-                sec.Slice(bp, blockSize).CopyTo(seq.Slice(i << blockSizeExponent));
+                var s = sec.Slice(bp);
+                if (s.Length > blockSize) s = s.Slice(0, blockSize);
+                s.CopyTo(seq.Slice(i << blockSizeExponent));
             }
             Assert.Multiple(() =>
             {
@@ -714,6 +720,174 @@ namespace ModernMemory.Tests.Sorting
                     bsa[i] = sav[(i << blockSizeExponent) + offset];
                 }
                 Assert.That(bva, Is.Ordered);
+            });
+        }
+
+        private static IEnumerable<(int blockSizeExponent, int size)> GenerateMergeBlocksOrdinalSizeValues()
+            => [(3, 64), (3, 72), (4, 1024)];
+
+        private static IEnumerable<(int blockSizeExponent, int size)> GenerateMergeBlocksFinalSizeValues()
+            => [(3, 63), (3, 65), (3, 71), (4, 1023), (3, 127)];
+
+        private static IEnumerable<TestCaseData> MergeBlocksOrdinalTestCaseSource()
+            => CreateMergeBlocksTestCases(GenerateMergeBlocksOrdinalSizeValues());
+
+        private static IEnumerable<TestCaseData> MergeBlocksFinalTestCaseSource()
+            => CreateMergeBlocksTestCases(GenerateMergeBlocksFinalSizeValues());
+
+        private static IEnumerable<TestCaseData> CreateMergeBlocksTestCases(IEnumerable<(int blockSizeExponent, int size)> src)
+            => src.SelectMany<(int blockSizeExponent, int size), TestCaseData>(b =>
+            [
+                new TestCaseData(b.blockSizeExponent, b.size, null) { TypeArgs = [typeof(IdentityPermutationProvider<object>), typeof(object)] },
+                new TestCaseData(b.blockSizeExponent, b.size, null) { TypeArgs = [typeof(ReversePermutationProvider<object>), typeof(object)] },
+                new TestCaseData(b.blockSizeExponent, b.size, 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size / 2) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size / 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size - b.size / 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, b.size - 3) { TypeArgs = [typeof(RotatedPermutationProvider), typeof(int)] },
+                new TestCaseData(b.blockSizeExponent, b.size, 0) { TypeArgs = [typeof(RandomPermutationProvider), typeof(int)] },
+            ]);
+
+
+        [TestCaseSource(nameof(MergeBlocksOrdinalTestCaseSource))]
+        public void MergeBlocksForwardsLargeStructMergesCorrectlyOrdinal<TSequencePermutationProvider, TParameter>(int blockSizeExponent, int size, TParameter parameter)
+            where TSequencePermutationProvider : ISequencePermutationProvider<TParameter>
+        {
+            var guard = 8;
+            var nSize = (nuint)size;
+            var blockSize = 1 << blockSizeExponent;
+            var blocks = AdaptiveOptimizedGrailSort.GetBlockCount(nSize, blockSizeExponent);
+            var keys = size >> blockSizeExponent;
+            var nKeys = (nuint)keys;
+            var medianKeyPos = (nuint)nint.MinValue >> BitOperations.LeadingZeroCount(blocks - 1);
+            var totalSize = guard * 2 + blockSize + size + keys;
+            var exp = new ulong[totalSize];
+            var se = exp.AsSpan();
+            RandomNumberGenerator.Fill(MemoryMarshal.AsBytes(se));
+            var sek = se.Slice(guard, keys + blockSize);
+            for (var i = 0; i < sek.Length; i++)
+            {
+                sek[i] = ((ulong)i << 32) | 0xffff_fffful;
+            }
+            var seq = se.Slice(guard + keys + blockSize, size);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                seq[i] = ui >> 1;
+            }
+            TSequencePermutationProvider.Permute(seq, parameter);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                var item = (ulong)ui;
+                item |= seq[i] << 32;
+                seq[i] = item;
+            }
+            var subarraySize = unchecked((nuint)nint.MinValue) >> BitOperations.LeadingZeroCount(nSize - 1);
+            seq.Slice(0, (int)subarraySize).Sort();
+            seq.Slice((int)subarraySize).Sort();
+            var act = se.ToArray();
+            var sa = act.AsSpan();
+            var sak = sa.Slice(guard, keys + blockSize);
+            var sav = sa.Slice(guard + keys + blockSize, size);
+            var sam = sa.Slice(guard + keys, size + blockSize);
+            var medianKey = sek[(int)medianKeyPos];
+            AdaptiveOptimizedGrailSort.SortBlocks<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeFalse>
+                (ref sak[0], sav, blockSizeExponent);
+            AdaptiveOptimizedGrailSort.MergeBlocksForwardsLargeStruct<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeFalse>
+                (in MemoryMarshal.GetReference(sak), medianKey, sam, blockSizeExponent, 0);
+            Assert.Multiple(() =>
+            {
+                var se = exp.AsSpan();
+                var sa = act.AsSpan();
+                var seg0 = se.Slice(0, guard);
+                var sag0 = sa.Slice(0, guard);
+                Assert.That(sag0.ToArray(), Is.EqualTo(seg0.ToArray()));
+                var srk = se.Slice(guard, keys);
+                var sak = sa.Slice(guard, keys);
+                Assert.That(sak.ToArray(), Is.EquivalentTo(srk.ToArray()));
+                var srv = se.Slice(guard + keys + blockSize, size);
+                srv.Sort();
+                var sav2 = sa.Slice(guard + keys, size);
+                Assert.That(sav2.ToArray(), Is.EqualTo(srv.ToArray()));
+                var srb = se.Slice(guard + keys, blockSize);
+                var sab2 = sa.Slice(guard + keys + size, blockSize);
+                Assert.That(sab2.ToArray(), Is.EquivalentTo(srb.ToArray()));
+                var seg1 = se.Slice(guard + keys + size + blockSize);
+                var sag1 = sa.Slice(guard + keys + size + blockSize);
+                Assert.That(sag1.ToArray(), Is.EqualTo(seg1.ToArray()));
+            });
+        }
+
+        [TestCaseSource(nameof(MergeBlocksFinalTestCaseSource))]
+        public void MergeBlocksForwardsLargeStructMergesCorrectlyFinal<TSequencePermutationProvider, TParameter>(int blockSizeExponent, int size, TParameter parameter)
+            where TSequencePermutationProvider : ISequencePermutationProvider<TParameter>
+        {
+            var guard = 8;
+            var nSize = (nuint)size;
+            var blockSize = 1 << blockSizeExponent;
+            var blocks = AdaptiveOptimizedGrailSort.GetBlockCount(nSize, blockSizeExponent);
+            var keys = size >> blockSizeExponent;
+            var nKeys = (nuint)keys;
+            var medianKeyPos = (nuint)nint.MinValue >> BitOperations.LeadingZeroCount(blocks - 1);
+            var totalSize = guard * 2 + blockSize + size + keys;
+            var exp = new ulong[totalSize];
+            var se = exp.AsSpan();
+            RandomNumberGenerator.Fill(MemoryMarshal.AsBytes(se));
+            var sek = se.Slice(guard, keys + blockSize);
+            for (var i = 0; i < sek.Length; i++)
+            {
+                sek[i] = ((ulong)i << 32) | 0xffff_fffful;
+            }
+            var seq = se.Slice(guard + keys + blockSize, size);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                seq[i] = ui >> 1;
+            }
+            TSequencePermutationProvider.Permute(seq, parameter);
+            for (var i = 0; i < seq.Length; i++)
+            {
+                var ui = (uint)i;
+                var item = (ulong)ui;
+                item |= seq[i] << 32;
+                seq[i] = item;
+            }
+            var subarraySize = unchecked((nuint)nint.MinValue) >> BitOperations.LeadingZeroCount(nSize - 1);
+            seq.Slice(0, (int)subarraySize).Sort();
+            seq.Slice((int)subarraySize).Sort();
+            var act = se.ToArray();
+            var sa = act.AsSpan();
+            var sak = sa.Slice(guard, keys + blockSize);
+            var sav = sa.Slice(guard + keys + blockSize, size);
+            var sam = sa.Slice(guard + keys, size + blockSize);
+            var medianKey = sek[(int)medianKeyPos];
+            AdaptiveOptimizedGrailSort.SortBlocks<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeFalse>
+                (ref sak[0], sav, blockSizeExponent);
+            var lastMerges = AdaptiveOptimizedGrailSort.CountLastMergeBlocks<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>>
+                (sav, blockSizeExponent);
+            AdaptiveOptimizedGrailSort.MergeBlocksForwardsLargeStruct<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>, TypeTrue>
+                (in MemoryMarshal.GetReference(sak), medianKey, sam, blockSizeExponent, lastMerges);
+            Assert.Multiple(() =>
+            {
+                var se = exp.AsSpan();
+                var sa = act.AsSpan();
+                var seg0 = se.Slice(0, guard);
+                var sag0 = sa.Slice(0, guard);
+                Assert.That(sag0.ToArray(), Is.EqualTo(seg0.ToArray()));
+                var srk = se.Slice(guard, keys);
+                var sak = sa.Slice(guard, keys);
+                Assert.That(sak.ToArray(), Is.EquivalentTo(srk.ToArray()));
+                var srv = se.Slice(guard + keys + blockSize, size);
+                srv.Sort();
+                var sav2 = sa.Slice(guard + keys, size);
+                Assert.That(sav2.ToArray(), Is.EqualTo(srv.ToArray()));
+                var srb = se.Slice(guard + keys, blockSize);
+                var sab2 = sa.Slice(guard + keys + size, blockSize);
+                Assert.That(sab2.ToArray(), Is.EquivalentTo(srb.ToArray()));
+                var seg1 = se.Slice(guard + keys + size + blockSize);
+                var sag1 = sa.Slice(guard + keys + size + blockSize);
+                Assert.That(sag1.ToArray(), Is.EqualTo(seg1.ToArray()));
             });
         }
     }
