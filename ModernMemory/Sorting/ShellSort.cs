@@ -15,13 +15,13 @@ namespace ModernMemory.Sorting
     {
         internal static ReadOnlySpan<ulong> ExtendedGaps => [12335712331615664267, 5482538814051406341, 2436683917356180597, 1082970629936080265, 481320279971591229, 213920124431818325, 95075610858585923, 42255827048260411, 18780367577004627, 8346830034224279, 3709702237433013, 1648756549970229, 732780688875657, 325680306166959, 144746802740871, 64331912329277, 28591961035235, 12707538237883, 5647794772393, 2510131009953, 1115613782201, 495828347645, 220368154509, 97941402005, 43529512003, 19346449779, 8598422125, 3821520945, 1698453753, 754868335, 335497039, 149109795, 66271021, 29453787, 13090573, 5818033, 2585793, 1149241, 510775, 227011, 100895, 44843, 19931, 8859, 3937];
         internal static ReadOnlySpan<ushort> Gaps => [1751, 701, 301, 132, 57, 23, 10, 4];
-        public static void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>
+        public static void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T?> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>
         {
             if (values.Length <= 1) return;
             var gaps = Gaps.AsReadOnlyNativeSpan();
             var gp = gaps.BinarySearch<ushort, ReverseStaticComparisonProxy<ushort, ComparisonOperatorsStaticComparisonProxy<ushort>>>
-                ((ushort)nuint.Min(ushort.MaxValue, (values.Length >> 1) - 1), out _);
-            if (gp == 0)
+                ((ushort)nuint.Min(ushort.MaxValue, (values.Length >> 1) - 1), out var exactMatch);
+            if (!exactMatch && gp == 0)
             {
                 var eg = ExtendedGaps.AsReadOnlyNativeSpan();
                 gp = eg.BinarySearch<ulong, ReverseStaticComparisonProxy<ulong, ComparisonOperatorsStaticComparisonProxy<ulong>>>
@@ -41,7 +41,7 @@ namespace ModernMemory.Sorting
             GallopInsertionSort<T, TStaticComparisonProxy>(values);
         }
 
-        private static void ShellSortPass<T, TStaticComparisonProxy>(NativeSpan<T> values, nuint gap) where TStaticComparisonProxy : IStaticComparisonProxy<T>
+        private static void ShellSortPass<T, TStaticComparisonProxy>(NativeSpan<T?> values, nuint gap) where TStaticComparisonProxy : IStaticComparisonProxy<T>
         {
             var vs = values;
             for (var i = gap; i < vs.Length; i++)
@@ -63,7 +63,7 @@ namespace ModernMemory.Sorting
             }
         }
 
-        public static void GallopInsertionSort<T, TProxy>(NativeSpan<T> values) where TProxy : IStaticComparisonProxy<T>
+        public static void GallopInsertionSort<T, TProxy>(NativeSpan<T?> values) where TProxy : IStaticComparisonProxy<T>
         {
             ref var head = ref values.Head;
             var length = values.Length;
@@ -82,7 +82,7 @@ namespace ModernMemory.Sorting
         }
 
         [SkipLocalsInit]
-        internal static nuint FindFirstElementGreaterThanOrEqualsToStatic<T, TProxy>(ref readonly T head, nuint length, T value) where TProxy : IStaticComparisonProxy<T>
+        internal static nuint FindFirstElementGreaterThanOrEqualsToStatic<T, TProxy>(ref readonly T? head, nuint length, T? value) where TProxy : IStaticComparisonProxy<T>
         {
             var span = NativeMemoryUtils.CreateReadOnlyNativeSpan(in head, length);
             if (length == 0) return 0;

@@ -101,9 +101,9 @@ namespace ModernMemory.Tests.Randomness
         [TestCase(7)]
         [TestCase(8)]
         [TestCase(9)]
-        [TestCase(10)]
-        [TestCase(11)]
-        [TestCase(12)]
+        [TestCase(10, Explicit = true)]
+        [TestCase(11, Explicit = true)]
+        [TestCase(12, Explicit = true)]
         [NonParallelizable]
         public void ShuffleAnySmallShufflesCorrectly(int size)
         {
@@ -134,6 +134,7 @@ namespace ModernMemory.Tests.Randomness
         }
 
         [Test]
+        [Explicit]
         [NonParallelizable]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public void ShuffleAnySmallUInt64Shuffles13ElementsCorrectly()

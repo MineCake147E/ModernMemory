@@ -4,6 +4,8 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -154,6 +156,23 @@ namespace ModernMemory
             return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), checked(MathUtils.BigDivConstant((nuint)t, (nuint)low, (nuint)Unsafe.SizeOf<TTo>())));
         }
         #endregion
+
+        #region Processor Cache
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static unsafe void Prefetch<T>(ref readonly T pointer)
+        {
+#if DEBUG
+            _ = pointer!;
+#else
+            if (Sse.IsSupported)
+            {
+                Sse.Prefetch0(Unsafe.AsPointer(ref Unsafe.AsRef(in pointer)));
+            }
+#endif
+        }
+
+#endregion
 
         #region Memory Management
 

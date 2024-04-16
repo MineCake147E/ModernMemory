@@ -11,6 +11,6 @@ namespace ModernMemory.Sorting
     public interface ISortAlgorithm
     {
         static virtual bool IsStableByDefault => false;
-        static abstract void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>;
+        static abstract void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T?> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>;
     }
 }
