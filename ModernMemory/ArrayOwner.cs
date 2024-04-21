@@ -58,7 +58,7 @@ namespace ModernMemory
             get => owner;
             set
             {
-                nativeMemory = owner?.NativeMemory ?? default;
+                nativeMemory = value?.NativeMemory ?? default;
                 owner = value;
             }
         }

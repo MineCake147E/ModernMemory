@@ -12,13 +12,10 @@ namespace ModernMemory.Utils
     public interface IStaticComparisonProxy<T>
     {
         /// <summary>
-        /// Negative: x is less than y<br/>
-        /// Zero: x is equal to y<br/>
-        /// Positive: x is greater than y
+        /// Negative: x &lt; y<br/>
+        /// Zero: x == y<br/>
+        /// Positive: x &gt; y
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <returns></returns>
         static abstract nint Compare(T? x, T? y);
     }
 

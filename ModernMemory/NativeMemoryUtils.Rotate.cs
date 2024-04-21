@@ -8,6 +8,6 @@ namespace ModernMemory
 {
     public static partial class NativeMemoryUtils
     {
-
+        public static void Rotate<T>(this scoped Span<T> span, int position) => span.AsNativeSpan().Rotate((nuint)position);
     }
 }

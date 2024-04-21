@@ -196,6 +196,8 @@ namespace ModernMemory
         }
         #endregion
 
+
+
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static nuint AbsDiff(nuint left, nuint right)
         {

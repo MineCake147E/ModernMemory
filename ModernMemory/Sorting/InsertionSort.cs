@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -11,12 +12,12 @@ using ModernMemory.Utils;
 
 namespace ModernMemory.Sorting
 {
-    public readonly struct BinaryInsertionSort
+    public readonly struct InsertionSort
     {
-        public static void Sort<T>(NativeSpan<T> values) where T : IComparisonOperators<T, T, bool>
+        public static void Sort<T>(NativeSpan<T?> values) where T : IComparisonOperators<T, T, bool>
             => Sort<T, ComparisonOperatorsStaticComparisonProxy<T>>(values);
 
-        public static void Sort<T, TProxy>(NativeSpan<T> values) where TProxy : IStaticComparisonProxy<T>
+        public static void Sort<T, TProxy>(NativeSpan<T?> values) where TProxy : IStaticComparisonProxy<T>
         {
             var span = values;
             ref var head = ref span.Head;
@@ -37,27 +38,18 @@ namespace ModernMemory.Sorting
 
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T> values, T value) where TProxy : IStaticComparisonProxy<T>
+        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T?> values, T? value) where TProxy : IStaticComparisonProxy<T>
         {
             ref readonly var head = ref values.Head;
             nuint length = values.Length;
-            nuint start = 0;
-            var len = length;
-            while (len > 0)
+            nuint i = length - 1;
+            while (i < length)
             {
-                var k = len;
-                var m = start;
-                len >>= 1;
-                k &= 1;
-                start += len;
-                k += len;
-                Debug.Assert(start < length);
-                nint c = TProxy.Compare(value, NativeMemoryUtils.Add(in head, start));
-                start = (nuint)(c >> ~0);
-                k &= ~start;
-                start = m + k;
+                nint c = TProxy.Compare(value, NativeMemoryUtils.Add(in head, i));
+                if (c >= 0) break;
+                i--;
             }
-            return start;
+            return i + 1;
         }
     }
 }

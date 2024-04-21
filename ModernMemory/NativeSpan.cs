@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Sorting;
 
 namespace ModernMemory
 {
@@ -382,6 +383,12 @@ namespace ModernMemory
         /// <inheritdoc cref="Span{T}.TryCopyTo(Span{T})"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public bool TryCopyTo(Span<T> destination) => ReadOnlyNativeSpan<T>.TryCopyTo(this, destination);
+
+        public readonly void Rotate(nuint position)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(position, Length);
+            AdaptiveOptimizedGrailSort.Rotate(ref head, position, Length - position);
+        }
 
         /// <summary>
         /// Determines whether the specified <paramref name="left"/> and <paramref name="right"/> shares the same region.
