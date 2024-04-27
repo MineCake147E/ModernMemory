@@ -35,7 +35,7 @@ namespace ModernMemory.Tests.Sorting
             var copy = elements.ToArray().AsSpan().ToArray();
             var exp = elements.Order().ToArray();
             var act = copy.AsNativeSpan();
-            BinaryInsertionSort.Sort<ulong, TransformedStaticComparisonProxy<ulong, uint, ComparisonOperatorsStaticComparisonProxy<uint>, BitShiftTransform>>(act);
+            BinaryInsertionSort.Sort<ulong, TransformedStaticComparer<ulong, uint, ComparisonOperatorsStaticComparer<uint>, BitShiftTransform>>(act);
             Assert.That(copy, Is.EqualTo(exp));
         }
     }

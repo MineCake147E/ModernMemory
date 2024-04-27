@@ -30,7 +30,7 @@ namespace ModernMemory.Tests.Sorting
         public static void Permute<T>(Span<T> destination, int parameter)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)parameter, (uint)destination.Length);
-            AdaptiveOptimizedGrailSort.Rotate(ref MemoryMarshal.GetReference(destination), (nuint)parameter, (nuint)(destination.Length - parameter));
+            NativeMemoryUtils.Rotate(ref MemoryMarshal.GetReference(destination), (nuint)parameter, (nuint)(destination.Length - parameter));
         }
     }
 

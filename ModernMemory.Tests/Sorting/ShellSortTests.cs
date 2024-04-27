@@ -29,7 +29,7 @@ namespace ModernMemory.Tests.Sorting
             var sw = Stopwatch.StartNew();
             Console.WriteLine("Sorting Start!");
             sw.Restart();
-            ShellSort.SortByStaticProxy<int, ComparableStaticComparisonProxy<int>>(vs.AsNativeSpan());
+            ShellSort.SortByStaticComparer<int, ComparableStaticComparer<int>>(vs.AsNativeSpan());
             sw.Stop();
             Console.WriteLine($"Sorting took {sw.Elapsed}");
             Assert.That(values, Is.Ordered);

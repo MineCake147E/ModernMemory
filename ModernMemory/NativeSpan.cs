@@ -387,7 +387,7 @@ namespace ModernMemory
         public readonly void Rotate(nuint position)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(position, Length);
-            AdaptiveOptimizedGrailSort.Rotate(ref head, position, Length - position);
+            NativeMemoryUtils.Rotate(ref head, position, Length - position);
         }
 
         /// <summary>

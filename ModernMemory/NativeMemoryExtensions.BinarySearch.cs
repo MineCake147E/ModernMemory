@@ -15,15 +15,15 @@ namespace ModernMemory
         #region BinarySearch
 
         #region StaticComparisonProxy
-        public static nuint BinarySearch<T, TProxy>(this ReadOnlyNativeSpan<T> span, T target, out bool exactMatch) where TProxy : IStaticComparisonProxy<T>
-            => BinarySearch<T, TProxy>(ref NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch);
+        public static nuint BinarySearch<T, TProxy>(this ReadOnlyNativeSpan<T> span, T target, out bool exactMatch) where TProxy : unmanaged, IStaticComparer<T>
+            => BinarySearch<T, TProxy>(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch);
 
-        public static nuint BinarySearch<T, TProxy>(this NativeSpan<T> span, T target, out bool exactMatch) where TProxy : IStaticComparisonProxy<T>
-            => BinarySearch<T, TProxy>(ref NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch);
+        public static nuint BinarySearch<T, TProxy>(this NativeSpan<T> span, T target, out bool exactMatch) where TProxy : unmanaged, IStaticComparer<T>
+            => BinarySearch<T, TProxy>(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch);
 
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        internal static nuint BinarySearch<T, TProxy>(ref readonly T head, nuint length, T target, out bool exactMatch) where TProxy : IStaticComparisonProxy<T>
+        internal static nuint BinarySearch<T, TProxy>(ref readonly T? head, nuint length, T? target, out bool exactMatch) where TProxy : unmanaged, IStaticComparer<T>
         {
             nuint start = 0;
             var len = length;
@@ -41,6 +41,43 @@ namespace ModernMemory
                 start = (nuint)(c >> ~0);
                 k &= ~start;
                 start = m + k;
+            }
+            exactMatch = c == 0;
+            return start;
+        }
+        #endregion
+
+        #region ILightweightComparer
+        public static nuint BinarySearch<T, TProxy>(this ReadOnlyNativeSpan<T> span, T target, out bool exactMatch, TProxy proxy) where TProxy : struct, ILightweightComparer<T, TProxy>
+            => BinarySearch(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch, proxy);
+
+        public static nuint BinarySearch<T, TProxy>(this NativeSpan<T> span, T target, out bool exactMatch, TProxy proxy) where TProxy : struct, ILightweightComparer<T, TProxy>
+            => BinarySearch(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch, proxy);
+
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        internal static nuint BinarySearch<T, TProxy>(ref readonly T? head, nuint length, T? target, out bool exactMatch, TProxy proxy) where TProxy : struct, ILightweightComparer<T, TProxy>
+        {
+            nuint start = 0;
+            nint c = 1;
+            if (length > 0)
+            {
+                var cmp = TProxy.Load(in proxy);
+                var len = length;
+                while (len > 0)
+                {
+                    var k = len;
+                    var m = start;
+                    len >>= 1;
+                    start += len;
+                    k &= 1;
+                    k += len;
+                    c = TProxy.Compare(target, NativeMemoryUtils.Add(in head, start), cmp);
+                    if (c == 0) break;
+                    start = (nuint)(c >> ~0);
+                    k &= ~start;
+                    start = m + k;
+                }
             }
             exactMatch = c == 0;
             return start;

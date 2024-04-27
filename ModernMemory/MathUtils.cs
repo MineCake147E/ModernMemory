@@ -196,7 +196,25 @@ namespace ModernMemory
         }
         #endregion
 
+        #region Bit Manipulation
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint RoundDownToPowerOfTwo(nuint value)
+        {
+            var y = value > 0 ? (nuint)1: 0;
+            return y << ~BitOperations.LeadingZeroCount(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint RoundDownToPowerOfTwo(nuint value, out int exponent)
+        {
+            var y = value > 0 ? (nuint)1 : 0;
+            var m = BitOperations.Log2(value);
+            exponent = m;
+            return y << m;
+        }
+
+        #endregion
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static nuint AbsDiff(nuint left, nuint right)

@@ -10,7 +10,7 @@ namespace ModernMemory.Sorting
 {
     public readonly struct HybridShellSort : ISortAlgorithm
     {
-        public static void SortByStaticProxy<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : IStaticComparisonProxy<T>
+        public static void SortByStaticComparer<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : unmanaged, IStaticComparer<T>
         {
 
         }

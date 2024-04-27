@@ -14,9 +14,9 @@ namespace ModernMemory.Sorting
     public readonly struct BinaryInsertionSort
     {
         public static void Sort<T>(NativeSpan<T> values) where T : IComparisonOperators<T, T, bool>
-            => Sort<T, ComparisonOperatorsStaticComparisonProxy<T>>(values);
+            => Sort<T, ComparisonOperatorsStaticComparer<T>>(values);
 
-        public static void Sort<T, TProxy>(NativeSpan<T> values) where TProxy : IStaticComparisonProxy<T>
+        public static void Sort<T, TProxy>(NativeSpan<T> values) where TProxy : unmanaged, IStaticComparer<T>
         {
             var span = values;
             ref var head = ref span.Head;
@@ -37,7 +37,7 @@ namespace ModernMemory.Sorting
 
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T> values, T value) where TProxy : IStaticComparisonProxy<T>
+        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T> values, T value) where TProxy : unmanaged, IStaticComparer<T>
         {
             ref readonly var head = ref values.Head;
             nuint length = values.Length;

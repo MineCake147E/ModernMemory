@@ -5,7 +5,7 @@ using ModernMemory.Utils;
 
 namespace ModernMemory.Tests.Sorting
 {
-    internal readonly struct RandomizedComparisonProxy<T> : IStaticComparisonProxy<T>
+    internal readonly struct RandomizedComparisonProxy<T> : IStaticComparer<T>
     {
         public static nint Compare(T? x, T? y)
         {
@@ -15,7 +15,7 @@ namespace ModernMemory.Tests.Sorting
         }
     }
 
-    internal readonly struct PositiveBiasedRandomizedComparisonProxy<T> : IStaticComparisonProxy<T>
+    internal readonly struct PositiveBiasedRandomizedComparisonProxy<T> : IStaticComparer<T>
     {
         public static nint Compare(T? x, T? y)
             => Random.Shared.Next(-1, 3);

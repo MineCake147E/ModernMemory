@@ -15,9 +15,9 @@ namespace ModernMemory.Sorting
     public readonly struct InsertionSort
     {
         public static void Sort<T>(NativeSpan<T?> values) where T : IComparisonOperators<T, T, bool>
-            => Sort<T, ComparisonOperatorsStaticComparisonProxy<T>>(values);
+            => SortByStaticProxy<T, ComparisonOperatorsStaticComparer<T>>(values);
 
-        public static void Sort<T, TProxy>(NativeSpan<T?> values) where TProxy : IStaticComparisonProxy<T>
+        public static void SortByStaticProxy<T, TProxy>(NativeSpan<T?> values) where TProxy : unmanaged, IStaticComparer<T>
         {
             var span = values;
             ref var head = ref span.Head;
@@ -25,12 +25,36 @@ namespace ModernMemory.Sorting
             nuint sorted = 0;
             while (++sorted < length)
             {
+                nuint i = sorted;
                 var newItem = span.ElementAtUnchecked(sorted);
-                var tailItem = span.ElementAtUnchecked(sorted - 1);
-                if (TProxy.Compare(tailItem, newItem) <= 0) continue;
-                var index = FindFirstElementGreaterThanStatic<T, TProxy>(span.SliceWhileIfLongerThan(sorted - 1), newItem);
-                Debug.Assert(index < sorted);
-                Debug.Assert(sorted - index <= sorted);
+                do
+                {
+                    i--;
+                } while (i < sorted && TProxy.Compare(newItem, span.ElementAtUnchecked(i)) < 0);
+                var index = i + 1;
+                if (index == sorted) continue;
+                NativeMemoryUtils.MoveMemory(ref Unsafe.Add(ref head, index + 1), ref Unsafe.Add(ref head, index), sorted - index);
+                Unsafe.Add(ref head, index) = newItem;
+            }
+        }
+
+        public static void Sort<T, TProxy>(NativeSpan<T?> values, in TProxy proxy) where TProxy : struct, ILightweightComparer<T, TProxy>
+        {
+            var span = values;
+            ref var head = ref span.Head;
+            nuint length = span.Length;
+            nuint sorted = 0;
+            var cmp = TProxy.Load(in proxy);
+            while (++sorted < length)
+            {
+                nuint i = sorted;
+                var newItem = span.ElementAtUnchecked(sorted);
+                do
+                {
+                    i--;
+                } while (i < sorted && TProxy.Compare(newItem, span.ElementAtUnchecked(i), cmp) < 0);
+                var index = i + 1;
+                if (index == sorted) continue;
                 NativeMemoryUtils.MoveMemory(ref Unsafe.Add(ref head, index + 1), ref Unsafe.Add(ref head, index), sorted - index);
                 Unsafe.Add(ref head, index) = newItem;
             }
@@ -38,7 +62,7 @@ namespace ModernMemory.Sorting
 
         [SkipLocalsInit]
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T?> values, T? value) where TProxy : IStaticComparisonProxy<T>
+        internal static nuint FindFirstElementGreaterThanStatic<T, TProxy>(ReadOnlyNativeSpan<T?> values, T? value) where TProxy : unmanaged, IStaticComparer<T>
         {
             ref readonly var head = ref values.Head;
             nuint length = values.Length;

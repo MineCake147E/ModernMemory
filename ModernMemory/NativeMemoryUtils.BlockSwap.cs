@@ -66,17 +66,17 @@ namespace ModernMemory
         private static void SwapReferenceByBlock64<T>(ref T x, ref T y, nuint length)
         {
             Unsafe.SkipInit(out FixedArray64<T> buf);
-            SwapReferenceBuffered(ref x, ref y, length, ref buf);
+            SwapBuffered(ref x, ref y, length, ref buf);
         }
 
         private static void SwapReferenceByBlock16<T>(ref T x, ref T y, nuint length)
         {
             Unsafe.SkipInit(out FixedArray16<T> buf);
-            SwapReferenceBuffered(ref x, ref y, length, ref buf);
+            SwapBuffered(ref x, ref y, length, ref buf);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void SwapReferenceBuffered<T, TArray>(ref T x, ref T y, nuint length, ref TArray buf)
+        internal static void SwapBuffered<T, TArray>(ref T x, ref T y, nuint length, ref TArray buf)
         where TArray : struct, IFixedGenericInlineArray<T, TArray>
         {
             var buffer = TArray.AsSpan(ref buf);
