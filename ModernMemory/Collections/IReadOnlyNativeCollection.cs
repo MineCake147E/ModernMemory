@@ -21,10 +21,10 @@ namespace ModernMemory.Collections
             {
                 destination[i] = enumerator.Current;
             }
-            return true;
+            return !enumerator.MoveNext();
         }
     }
-    public interface INativeCollection<T> : IReadOnlyNativeCollection<T>, IAddableCollection<T>, IClearable<T>
+    public interface INativeCollection<T> : IReadOnlyNativeCollection<T>, IAddable<T>, IClearable<T>
     {
     }
 }

@@ -8,9 +8,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
-
-using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
+using ModernMemory.DataFlow;
 
 namespace ModernMemory.Buffers
 {
@@ -23,9 +22,9 @@ namespace ModernMemory.Buffers
         private readonly nuint lastRunningIndex;
 
         [SkipLocalsInit]
-        public ReadOnlySequenceSlim(ref ReadOnlySequenceSegment<T> segment)
+        public ReadOnlySequenceSlim(ref readonly ReadOnlySequenceSegment<T> segment)
         {
-            this = new(new ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>>(ref segment));
+            this = new(new ReadOnlyNativeSpan<ReadOnlySequenceSegment<T>>(in segment));
         }
 
         [SkipLocalsInit]

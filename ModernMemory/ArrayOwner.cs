@@ -11,7 +11,9 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
+using ModernMemory.Buffers.Pooling;
 using ModernMemory.Collections;
+using ModernMemory.Threading;
 
 namespace ModernMemory
 {
@@ -20,8 +22,8 @@ namespace ModernMemory
 #pragma warning disable IDE0032 // Use auto property
         private NativeMemory<T> nativeMemory;
 #pragma warning restore IDE0032 // Use auto property
-        private INativeMemoryOwner<T>? owner;
-        private bool disposedValue;
+        private MemoryOwnerContainer<T> owner;
+        private uint disposedValue = AtomicUtils.GetValue(false);
 
         public NativeMemory<T> NativeMemory => nativeMemory;
 
@@ -29,19 +31,19 @@ namespace ModernMemory
 
         public ArrayOwner(INativeMemoryOwner<T>? owner)
         {
-            Owner = owner;
+            SetOwner(new(owner));
         }
 
         public ArrayOwner(nuint minimumLength)
         {
-            Owner = NativeMemoryPool<T>.Shared.Rent(minimumLength);
+            SetOwner(NativeMemoryPool<T>.Shared.Rent(minimumLength));
         }
 
         private ArrayOwner(bool empty = false)
         {
             if (empty)
             {
-                owner = null;
+                owner = default;
                 nativeMemory = default;
                 Dispose();
             }
@@ -49,36 +51,32 @@ namespace ModernMemory
 
         public nuint Length => NativeMemory.Length;
 
-        public NativeSpan<T> Span => NativeMemory.Span;
+        public NativeSpan<T> Span => owner.Span;
 
         public void Clear() => Span.Clear();
 
-        private INativeMemoryOwner<T>? Owner
+
+        private void SetOwner(MemoryOwnerContainer<T> value)
         {
-            get => owner;
-            set
-            {
-                nativeMemory = value?.NativeMemory ?? default;
-                owner = value;
-            }
+            nativeMemory = value.NativeMemory;
+            owner = value;
         }
 
-        Memory<T> IMemoryOwner<T>.Memory => owner?.Memory ?? default;
+        Memory<T> IMemoryOwner<T>.Memory => owner.Memory;
         nuint ICountable<nuint>.Count => Length;
 
         public T this[nuint index] { get => Span[index]; set => Span[index] = value; }
 
         private void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!AtomicUtils.Exchange(ref disposedValue, true))
             {
-                Debug.Assert(disposing || !disposedValue);
+                Debug.Assert(disposing);
                 var span = Span;
-                if (!span.IsEmpty && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                    span.Clear();
-                Owner?.Dispose();
-                Owner = null;
-                disposedValue = true;
+                span.ClearIfReferenceOrContainsReferences();
+                owner.Dispose();
+                owner = default;
+                nativeMemory = default;
             }
         }
 

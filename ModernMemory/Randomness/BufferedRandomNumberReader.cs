@@ -10,9 +10,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
-
-using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
+using ModernMemory.DataFlow;
 using ModernMemory.Randomness.Permutation;
 
 namespace ModernMemory.Randomness
@@ -117,7 +116,7 @@ namespace ModernMemory.Randomness
             var dst = destination;
             if (dst.IsEmpty) return 0;
             // Read from buffer
-            var dequeued = Buffer.DequeueRange(dst);
+            var dequeued = Buffer.DequeueRangeAtMost(dst);
             if (dequeued < dst.Length)
             {
                 dst = dst.Slice(dequeued);
@@ -128,7 +127,7 @@ namespace ModernMemory.Randomness
                     dst = dst.Slice(generated);
                     // Refill the buffer and read from buffer again
                     EnsureBuffer(dst.Length, RefillSize);
-                    Buffer.DequeueRange(dst);
+                    Buffer.DequeueRangeAtMost(dst);
                 }
             }
             return destination.Length;

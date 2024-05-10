@@ -6,8 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
-using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
+using ModernMemory.DataFlow;
 
 namespace ModernMemory.Tests.Buffers
 {

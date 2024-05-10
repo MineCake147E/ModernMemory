@@ -22,6 +22,8 @@ namespace ModernMemory.Buffers
         public NativeMemory<T> NativeMemory => owner.Memory;
         public Memory<T> Memory => owner.Memory;
 
+        public NativeSpan<T> Span => owner.Memory.Span;
+
         public void Dispose() => owner.Dispose();
     }
 }

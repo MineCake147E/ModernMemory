@@ -3,232 +3,87 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
-using ModernMemory.Buffers.DataFlow;
+using ModernMemory.DataFlow;
 using ModernMemory.Threading;
 
 namespace ModernMemory.Collections
 {
-    public sealed partial class NativeQueue<T> : IDisposable, IReadOnlyNativeList<T>, INativeBufferWriter<T>, ISpanEnumerable<T>
+    [CollectionBuilder(typeof(NativeCollectionBuilder), nameof(NativeCollectionBuilder.CreateNativeQueue))]
+    public sealed partial class NativeQueue<T> : IDisposable, IReadOnlyNativeList<T>, INativeBufferWriter<T>, ISpanEnumerable<T>, IQueue<T>
     {
-        private uint disposedValue = AtomicUtils.GetValue(false);
-        private nuint readHead;
-        private nuint count;
-        private MemoryResizer<T> resizer;
+        private NativeQueueCore<T> core;
 
-        public NativeQueue() : this(new MemoryResizer<T>()) { }
+        public T this[nuint index] { get => core[index]; set => core[index] = value; }
 
-        public NativeQueue(NativeMemoryPool<T> pool) : this(new MemoryResizer<T>(pool)) { }
+        public nuint Count => core.Count;
 
-        public NativeQueue(nuint initialSize) : this(new MemoryResizer<T>(initialSize)) { }
-        public NativeQueue(NativeMemoryPool<T> pool, nuint initialSize) : this(new MemoryResizer<T>(pool, initialSize)) { }
+        public ReadOnlyNativeSpan<T> Span => core.Span;
 
-        private NativeQueue(MemoryResizer<T> resizer)
+        public ReadOnlyNativeMemory<T> Memory => core.Memory;
+
+        public NativeQueue()
         {
-            this.resizer = resizer;
-            readHead = 0;
-            count = 0;
+            core = new(new MemoryResizer<T>());
         }
 
-        private NativeMemory<T> NativeMemory => resizer.NativeMemory;
-
-        private NativeSpan<T> VisibleValues => NativeMemory.Span.Slice(readHead, count);
-
-        private NativeSpan<T> Writable => NativeMemory.Span.Slice(readHead + count);
-
-        public nuint Count => count;
-
-        public T this[nuint index] => VisibleValues[index];
-
-        public ReadOnlyNativeSpan<T> Span => VisibleValues;
-
-        public ReadOnlyNativeMemory<T> Memory => NativeMemory.Slice(readHead, count);
-
-        public void Add(T item) => Add([item]);
-
-        public void Add(ReadOnlyNativeSpan<T> items)
+        internal NativeQueue(NativeQueueCore<T> core)
         {
-            EnsureCapacityToAdd(items.Length);
-            var m = items.CopyAtMostTo(Writable);
-            count += m;
-            Debug.Assert(m == items.Length);
+            this.core = core;
         }
 
-        public T Peek()
+        public NativeQueue(NativeMemoryPool<T> pool)
         {
-            var m = VisibleValues;
-            return m.IsEmpty ? throw new InvalidOperationException("The Queue is empty!") : m.Head;
+            core = new(pool);
         }
 
-        public T Dequeue()
+        public NativeQueue(nuint initialSize)
         {
-            var m = VisibleValues;
-            if (m.IsEmpty) throw new InvalidOperationException("The Queue is empty!");
-            ref var rr = ref m.Head;
-            var res = rr;
-            rr = default;
-            count--;
-            readHead++;
-            return res;
+            core = new(initialSize);
+        }
+        public NativeQueue(NativeMemoryPool<T> pool, nuint initialSize)
+        {
+            core = new(pool, initialSize);
         }
 
-        public nuint DequeueRange(NativeSpan<T> destination)
-        {
-            var length = destination.Length;
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(length, count);
-            var span = NativeMemory.Span.Slice(readHead, length);
-            length = span.CopyAtMostTo(destination);
-            count -= length;
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                span.SliceWhileIfLongerThan(length).Clear();
-            }
-            readHead += length;
-            return length;
-        }
-
-        public void DequeueRange<TBufferWriter>(scoped ref DataWriter<T, TBufferWriter> writer) where TBufferWriter : IBufferWriter<T>
-        {
-            if (writer.IsCompleted) return;
-            var d = writer.WriteAtMost(VisibleValues);
-            if (!writer.IsCompleted) throw new InvalidOperationException("Not enough data to write!");
-            DiscardHead(d);
-        }
-
-        public void DequeueRange<TBufferWriter>(scoped ref TBufferWriter writer, nuint elements) where TBufferWriter : IBufferWriter<T>
-        {
-            var dw = DataWriter<T>.CreateFrom(ref writer, elements);
-            DequeueRange(ref dw);
-            dw.Dispose();
-        }
-
-        public nuint DequeueRangeAtMost<TBufferWriter>(scoped ref DataWriter<T, TBufferWriter> writer) where TBufferWriter : IBufferWriter<T>
-        {
-            if (writer.IsCompleted || count == 0) return 0;
-            var d = writer.WriteAtMost(VisibleValues);
-            DiscardHead(d);
-            return d;
-        }
-
-        public void DequeueAll<TBufferWriter>(scoped ref TBufferWriter writer) where TBufferWriter : IBufferWriter<T>
-        {
-            var dw = DataWriter<T>.CreateFrom(ref writer);
-            DequeueRange(ref dw);
-            dw.Dispose();
-        }
-
-        public void DiscardHead(nuint count)
-        {
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(count, this.count);
-            this.count -= count;
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                NativeMemory.Span.Slice(readHead, count).Clear();
-            }
-            readHead += count;
-        }
-
-        private void TrimHead()
-        {
-            var m = NativeMemory;
-            var c = count;
-            var rH = readHead;
-            readHead = 0;
-            if (c == 0 || rH == m.Length)
-            {
-                count = 0;
-                return;
-            }
-            var span = m.Span;
-            var v = span.Slice(rH, c);
-            v.CopyTo(span);
-        }
-
-        public void EnsureCapacityToAdd(nuint size)
-        {
-            if (Writable.Length >= size)
-            {
-                return;
-            }
-            TrimHead();
-            if (Writable.Length < size)
-            {
-                resizer.Resize(count + size);
-            }
-            Debug.Assert(Writable.Length >= size);
-        }
-
-        public void Clear()
-        {
-            readHead = 0;
-            count = 0;
-            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
-                NativeMemory.Span.Clear();
-            }
-        }
-
-        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(VisibleValues);
-        public bool TryGetMaxBufferSize(out nuint space)
-        {
-            space = nuint.MaxValue;
-            return false;
-        }
-        public void Advance(nuint count)
-        {
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(count, Writable.Length);
-            this.count += count;
-        }
-        public NativeSpan<T> GetNativeSpan(nuint sizeHint = 0U)
-        {
-            EnsureCapacityToAdd(sizeHint);
-            return Writable;
-        }
-        public NativeMemory<T> GetNativeMemory(nuint sizeHint = 0U)
-        {
-            EnsureCapacityToAdd(sizeHint);
-            return NativeMemory.Slice(readHead + count);
-        }
-        public NativeSpan<T> TryGetNativeSpan(nuint sizeHint = 0U) => sizeHint > ~(readHead + count) ? Writable : GetNativeSpan(sizeHint);
-        public NativeMemory<T> TryGetNativeMemory(nuint sizeHint = 0U) => sizeHint > ~(readHead + count) ? NativeMemory.Slice(readHead + count) : GetNativeMemory(sizeHint);
-        public void Advance(int count)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(count);
-            Advance((nuint)count);
-        }
-        public Memory<T> GetMemory(int sizeHint = 0)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
-            return GetNativeMemory((nuint)sizeHint).GetHeadMemory();
-        }
-        public Span<T> GetSpan(int sizeHint = 0)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(sizeHint);
-            return GetNativeSpan((nuint)sizeHint).GetHeadSpan();
-        }
-
-        IEnumerator<T> IEnumerable<T>.GetEnumerator() => throw new NotImplementedException();
-        IEnumerator IEnumerable.GetEnumerator() => throw new NotImplementedException();
+        public void Add(ReadOnlyNativeSpan<T> items) => core.Add(items);
+        public void Add(T item) => core.Add(item);
+        public void Advance(nuint count) => core.Advance(count);
+        public void Clear() => core.Clear();
+        public T Dequeue() => core.Dequeue();
+        public void DequeueAll<TBufferWriter>(ref TBufferWriter writer) where TBufferWriter : IBufferWriter<T> => core.DequeueAll(ref writer);
+        public void DequeueRange<TBufferWriter>(ref DataWriter<T, TBufferWriter> writer) where TBufferWriter : IBufferWriter<T> => core.DequeueRange(ref writer);
+        public void DequeueRange<TBufferWriter>(ref TBufferWriter writer, nuint elements) where TBufferWriter : IBufferWriter<T> => core.DequeueRange(ref writer, elements);
+        public void DequeueRangeExact(NativeSpan<T> destination) => core.DequeueRangeExact(destination);
+        public nuint DequeueRangeAtMost(NativeSpan<T> destination) => core.DequeueRangeAtMost(destination);
+        public nuint DequeueRangeAtMost<TBufferWriter>(ref DataWriter<T, TBufferWriter> writer) where TBufferWriter : IBufferWriter<T> => core.DequeueRangeAtMost(ref writer);
+        public void DiscardHead(nuint count) => core.DiscardHead(count);
+        public nuint DiscardHeadAtMost(nuint count) => core.DiscardHeadAtMost(count);
+        public void EnsureCapacityToAdd(nuint size) => core.EnsureCapacityToAdd(size);
+        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => core.GetEnumerator();
+        public Memory<T> GetMemory(int sizeHint = 0) => core.GetMemory(sizeHint);
+        public NativeMemory<T> GetNativeMemory(nuint sizeHint = 0U) => core.GetNativeMemory(sizeHint);
+        public NativeSpan<T> GetNativeSpan(nuint sizeHint = 0U) => core.GetNativeSpan(sizeHint);
+        public Span<T> GetSpan(int sizeHint = 0) => core.GetSpan(sizeHint);
+        public T Peek() => core.Peek();
+        public bool TryDequeue([MaybeNullWhen(false)] out T item) => core.TryDequeue(out item);
+        public bool TryGetMaxBufferSize(out nuint space) => core.TryGetMaxBufferSize(out space);
+        public NativeMemory<T> TryGetNativeMemory(nuint sizeHint = 0U) => core.TryGetNativeMemory(sizeHint);
+        public NativeSpan<T> TryGetNativeSpan(nuint sizeHint = 0U) => core.TryGetNativeSpan(sizeHint);
+        public bool TryPeek([MaybeNullWhen(false)] out T item) => core.TryPeek(out item);
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() => ((IEnumerable<T>)core).GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)core).GetEnumerator();
     }
 
     public sealed partial class NativeQueue<T>
     {
-        private void Dispose(bool disposing)
-        {
-            if (!AtomicUtils.Exchange(ref disposedValue, true))
-            {
-                if (disposing)
-                {
-                    resizer.Dispose();
-                }
-                resizer = default;
-            }
-        }
+        private void Dispose(bool disposing) => core.DisposeCore(disposing);
 
         public void Dispose()
         {

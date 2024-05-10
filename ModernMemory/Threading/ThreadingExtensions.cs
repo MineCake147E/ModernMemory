@@ -25,6 +25,6 @@ namespace ModernMemory.Threading
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static bool GetIsFastYieldAvailable() => Environment.ProcessorCount > 0 && (X86Base.IsSupported || ArmBase.IsSupported);
+        public static bool GetIsFastYieldAvailable() => Environment.ProcessorCount > 1 && (X86Base.IsSupported || ArmBase.IsSupported);
     }
 }

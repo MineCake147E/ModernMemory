@@ -6,8 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
-using ModernMemory.Buffers.DataFlow;
-
+using ModernMemory.DataFlow;
 using NUnit.Framework;
 
 using static System.Runtime.InteropServices.JavaScript.JSType;

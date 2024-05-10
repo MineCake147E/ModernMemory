@@ -11,16 +11,20 @@ namespace ModernMemory.Threading
 {
     public struct ValueSpinLockSlim
     {
-        internal uint lockField;
+        internal uint lockField = 0;
+
+        public ValueSpinLockSlim()
+        {
+        }
 
         public readonly bool IsHeld
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => lockField > 0;
+            get => Volatile.Read(in lockField) > 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void Exit() => lockField = 0;
+        internal void Exit() => Volatile.Write(ref lockField, 0);
 
         public readonly ref struct AcquiredLock
         {
@@ -69,7 +73,7 @@ namespace ModernMemory.Threading
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ValueSpinLockSlim.AcquiredLock Enter(this ref ValueSpinLockSlim spinLock)
         {
-            if (ThreadingExtensions.GetIsFastYieldAvailable())
+            if (!ThreadingExtensions.GetIsFastYieldAvailable())
             {
                 return EnterFallback(ref spinLock);
             }

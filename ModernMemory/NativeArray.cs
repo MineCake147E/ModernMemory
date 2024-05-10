@@ -20,6 +20,7 @@ namespace ModernMemory
     /// </summary>
     /// <typeparam name="T">The type of items in the <see cref="NativeArray{T}"/>.</typeparam>
 #pragma warning disable CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
+    [Obsolete("Use ArrayOwner instead!")]
     [StructLayout(LayoutKind.Sequential)]
     public sealed unsafe class NativeArray<T> : INativeSpanFactory<T>, IReadOnlyList<T>, ITypedEnumerable<T, NativeArray<T>.Enumerator>, IDisposable
     {
@@ -238,11 +239,11 @@ namespace ModernMemory
             }
         }
 
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // // TODO: override finalizer only if 'DisposeCore(bool disposing)' has code to free unmanaged resources
         // ~NativeArray()
         // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
+        //     // Do not change this code. Put cleanup code in 'DisposeCore(bool disposing)' method
+        //     DisposeCore(disposing: false);
         // }
 
         public void Dispose()

@@ -34,6 +34,8 @@ namespace ModernMemory.Buffers
         /// <inheritdoc cref="ReadOnlySequence{T}.GetOffset(SequencePosition)"/>
         nuint GetOffset(TSequencePosition position);
 
+        nuint GetSize(TSequencePosition origin, TSequencePosition terminal);
+
         /// <inheritdoc cref="ReadOnlySequence{T}.GetPosition(long)"/>
         TSequencePosition GetPosition(nuint offset);
         /// <inheritdoc cref="ReadOnlySequence{T}.GetPosition(long, SequencePosition)"/>

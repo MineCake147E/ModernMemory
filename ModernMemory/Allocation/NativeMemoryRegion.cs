@@ -59,10 +59,11 @@ namespace ModernMemory.Allocation
         /// </summary>
         /// <param name="length">The length.</param>
         /// <param name="alignmentExponent">The number of zeros to be at lowest significant bits.</param>
-        /// <param name="fillWithZero">The internalValue which indicates whether the <see cref="NativeMemoryRegion{T}"/> should perform <see cref="Clear"/> after allocating.</param>
+        /// <param name="clear">The internalValue which indicates whether the <see cref="NativeMemoryRegion{T}"/> should perform <see cref="Clear"/> after allocating.</param>
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-        public NativeMemoryRegion(nuint length, byte alignmentExponent = 0, bool fillWithZero = false)
+        public NativeMemoryRegion(nuint length, byte alignmentExponent = 0, bool clear = false)
         {
+            clear |= RuntimeHelpers.IsReferenceOrContainsReferences<T>();
             var alignmentExponentLimit = (ushort)(Unsafe.SizeOf<nuint>() * 8);
             if (!NativeMemoryUtils.ValidateAllocationRequest<T>(length, out var lengthInBytes, alignmentExponent, alignmentExponentLimit))
             {
@@ -73,7 +74,7 @@ namespace ModernMemory.Allocation
             head = (T*)NativeMemoryUtils.AllocateNativeMemoryInternal(lengthInBytes, alignmentExponent, true);
             this.length = length;
 
-            if (fillWithZero)
+            if (clear)
             {
                 NativeSpan.Clear();
             }
@@ -81,13 +82,16 @@ namespace ModernMemory.Allocation
 
         public void Dispose()
         {
-            var len = length;
+            var len = Interlocked.Exchange(ref length, 0);
             var h = head;
-            var requestedAlignment = RequestedAlignment;
-            if (h is not null && len > 0 && Interlocked.CompareExchange(ref length, 0, len) == len)
+            if (len > 0)
             {
-                NativeMemoryUtils.FreeInternal(h, len, requestedAlignment);
-                head = null;
+                var requestedAlignment = RequestedAlignment;
+                if (h is not null)
+                {
+                    NativeMemoryUtils.FreeInternal(h, len, requestedAlignment);
+                    head = null;
+                }
             }
         }
     }

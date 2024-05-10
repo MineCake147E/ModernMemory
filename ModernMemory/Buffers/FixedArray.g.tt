@@ -29,7 +29,6 @@ namespace ModernMemory.Buffers
     foreach (var size in sizes)
     {
 #>
-    [StructLayout(LayoutKind.Sequential)]
     [InlineArray(<#=size#>)]
     [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
     public struct FixedArray<#=size#><T> : IFixedGenericInlineArray<T, FixedArray<#=size#><T>>
@@ -40,6 +39,7 @@ namespace ModernMemory.Buffers
         public static int Count => <#=size#>;
     
         public static Span<T> AsSpan(ref FixedArray<#=size#><T> self) => self;
+
         private string GetDebuggerDisplay()
         {
             ReadOnlySpan<T> a = this;

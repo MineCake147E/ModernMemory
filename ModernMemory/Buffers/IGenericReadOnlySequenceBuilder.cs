@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
-using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
+using ModernMemory.DataFlow;
 
 namespace ModernMemory.Buffers
 {
@@ -23,7 +22,9 @@ namespace ModernMemory.Buffers
     {
         TSequence Build();
 
-        nuint CurrentLength { get; }
+        nuint CurrentElementCount { get; }
+
+        nuint CurrentSegmentCount { get; }
 
         void Clear();
 

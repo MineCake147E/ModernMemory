@@ -13,5 +13,7 @@ namespace ModernMemory.Buffers
         static abstract int Count { get; }
 #pragma warning restore S2743 // Static fields should not be used in generic types
         static abstract Span<T> AsSpan(ref TSelf self);
+
+        static NativeSpan<T> AsNativeSpan(ref TSelf self) => new(TSelf.AsSpan(ref self));
     }
 }

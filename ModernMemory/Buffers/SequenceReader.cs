@@ -4,9 +4,8 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
-using ModernMemory.Buffers.DataFlow;
 using ModernMemory.Collections;
+using ModernMemory.DataFlow;
 
 namespace ModernMemory.Buffers
 {

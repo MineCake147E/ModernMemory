@@ -14,9 +14,6 @@ namespace ModernMemory.Sorting
 {
     public readonly struct InsertionSort
     {
-        public static void Sort<T>(NativeSpan<T?> values) where T : IComparisonOperators<T, T, bool>
-            => SortByStaticProxy<T, ComparisonOperatorsStaticComparer<T>>(values);
-
         public static void SortByStaticProxy<T, TProxy>(NativeSpan<T?> values) where TProxy : unmanaged, IStaticComparer<T>
         {
             var span = values;
@@ -37,6 +34,9 @@ namespace ModernMemory.Sorting
                 Unsafe.Add(ref head, index) = newItem;
             }
         }
+
+        public static void Sort<T>(NativeSpan<T?> values) where T : IComparisonOperators<T, T, bool>
+            => SortByStaticProxy<T, ComparisonOperatorsStaticComparer<T>>(values);
 
         public static void Sort<T, TProxy>(NativeSpan<T?> values, in TProxy proxy) where TProxy : struct, ILightweightComparer<T, TProxy>
         {

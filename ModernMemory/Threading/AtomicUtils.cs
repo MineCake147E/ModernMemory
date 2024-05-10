@@ -20,7 +20,28 @@ namespace ModernMemory.Threading
         public static bool Exchange(ref int location1, bool value)
             => unchecked(Unsafe.BitCast<byte, bool>((byte)Interlocked.Exchange(ref location1, Unsafe.BitCast<bool, byte>(value))));
 
+        /// <inheritdoc cref="Interlocked.CompareExchange(ref uint, uint, uint)"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool CompareExchange(ref uint location1, bool value, bool comparand)
+            => unchecked(Unsafe.BitCast<byte, bool>((byte)Interlocked.CompareExchange(ref location1, Unsafe.BitCast<bool, byte>(value), Unsafe.BitCast<bool, byte>(comparand))));
+
+        /// <inheritdoc cref="Interlocked.CompareExchange(ref int, int, int)"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool CompareExchange(ref int location1, bool value, bool comparand)
+            => unchecked(Unsafe.BitCast<byte, bool>((byte)Interlocked.CompareExchange(ref location1, Unsafe.BitCast<bool, byte>(value), Unsafe.BitCast<bool, byte>(comparand))));
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint GetValue(bool value) => Unsafe.BitCast<bool, byte>(value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool GetValue(uint value) => Unsafe.BitCast<byte, bool>((byte)value);
+
+        /// <inheritdoc cref="Volatile.Read(ref readonly uint)"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool LoadValue(ref readonly uint location) => Unsafe.BitCast<byte, bool>((byte)Volatile.Read(in location));
+
+        /// <inheritdoc cref="Volatile.Write(ref uint, uint)"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void StoreValue(ref uint location, bool value) => Volatile.Write(ref location, Unsafe.BitCast<bool, byte>(value));
     }
 }

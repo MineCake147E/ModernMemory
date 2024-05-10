@@ -8,6 +8,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Collections;
+
 namespace ModernMemory.Buffers
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -24,8 +26,7 @@ namespace ModernMemory.Buffers
         {
             Unsafe.SkipInit(out this);
             var segment = new ReadOnlySequenceSegment<T>(memory, 0);
-            var array = new ReadOnlySequenceSegment<T>[] { segment };
-            this = new(array);
+            this = new(segment);
         }
 
         [SkipLocalsInit]
@@ -34,13 +35,18 @@ namespace ModernMemory.Buffers
             Unsafe.SkipInit(out this);
             var array = new ReadOnlySequenceSegment<T>[segments.Length];
             var span = array.AsSpan(0, segments.Length);
-            nuint runningIndex = 0;
-            for (var i = 0; i < span.Length; i++)
-            {
-                var segment = segments[i];
-                span[i] = new(segment, runningIndex);
-                runningIndex += segment.Length;
-            }
+            ConstructSegments(0, segments, span);
+            this = new(array);
+        }
+
+        [SkipLocalsInit]
+        public ReadOnlyMemorySequence(ReadOnlyNativeSpan<ReadOnlyNativeMemory<T>> segments, ref MemoryResizer<ReadOnlySequenceSegment<T>> memory)
+        {
+            Unsafe.SkipInit(out this);
+            memory.Resize(segments.Length);
+            var array = memory.NativeMemory;
+            var span = array.Span;
+            ConstructSegments(0, segments, span);
             this = new(array);
         }
 
@@ -61,48 +67,6 @@ namespace ModernMemory.Buffers
         }
 
         [SkipLocalsInit]
-        public ReadOnlyMemorySequence(ReadOnlyNativeSpan<ReadOnlyNativeMemory<T>> segments)
-        {
-            Unsafe.SkipInit(out this);
-            if (segments.FitsInReadOnlySpan)
-            {
-                this = new(segments.GetHeadReadOnlySpan());
-                return;
-            }
-            var array = new NativeArray<ReadOnlySequenceSegment<T>>(segments.Length);
-            var span = array.NativeSpan.Slice(0, segments.Length);
-            nuint runningIndex = 0;
-            for (nuint i = 0; i < span.Length; i++)
-            {
-                var segment = segments.ElementAtUnchecked(i);
-                span.ElementAtUnchecked(i) = new(segment, runningIndex);
-                runningIndex += segment.Length;
-            }
-            this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)array.AsNativeMemory());
-        }
-
-        [SkipLocalsInit]
-        public ReadOnlyMemorySequence(ReadOnlyNativeSpan<T[]> segments)
-        {
-            Unsafe.SkipInit(out this);
-            if (segments.FitsInReadOnlySpan)
-            {
-                this = new(segments.GetHeadReadOnlySpan());
-                return;
-            }
-            var array = new NativeArray<ReadOnlySequenceSegment<T>>(segments.Length);
-            var span = array.NativeSpan.Slice(0, segments.Length);
-            nuint runningIndex = 0;
-            for (nuint i = 0; i < span.Length; i++)
-            {
-                var segment = segments.ElementAtUnchecked(i).AsMemory();
-                span.ElementAtUnchecked(i) = new(segment, runningIndex);
-                runningIndex += (nuint)segment.Length;
-            }
-            this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)array.AsNativeMemory());
-        }
-
-        [SkipLocalsInit]
         public ReadOnlyMemorySequence(NativeMemory<ReadOnlySequenceSegment<T>> segments)
         {
             var span = segments.Span;
@@ -120,6 +84,12 @@ namespace ModernMemory.Buffers
                 runningIndex += memory.Length;
             }
             this = new((ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>>)segments);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlyMemorySequence(params ReadOnlySequenceSegment<T>[] segments)
+        {
+            this = new(segments.AsMemory());
         }
 
         [SkipLocalsInit]
@@ -156,22 +126,77 @@ namespace ModernMemory.Buffers
             var tail = span.Tail;
             var headRunningIndex = head.RunningIndex;
             var tailRunningIndex = tail.RunningIndex;
-            ArgumentOutOfRangeException.ThrowIfLessThan(tailRunningIndex, headRunningIndex);
-            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(firstIndex, head.Memory.Length);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(endIndex, tail.Memory.Length);
             var last = tailRunningIndex + endIndex;
             var first = headRunningIndex + firstIndex;
-            ArgumentOutOfRangeException.ThrowIfLessThan(last, first);
             if (last == first)  // Empty
             {
                 this = default;
                 return;
             }
+            ArgumentOutOfRangeException.ThrowIfLessThan(tailRunningIndex, headRunningIndex);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(firstIndex, head.Memory.Length);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(endIndex, tail.Memory.Length);
+            ArgumentOutOfRangeException.ThrowIfLessThan(last, first);
             this.segments = segments;
             this.firstIndex = firstIndex;
             this.endIndex = endIndex;
             firstRunningIndex = headRunningIndex;
             lastRunningIndex = tailRunningIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static nuint ConstructSegments(nuint initialRunningIndex, ReadOnlyNativeSpan<ReadOnlyNativeMemory<T>> segments, NativeSpan<ReadOnlySequenceSegment<T>> calculatedSegments)
+        {
+            nuint runningIndex = initialRunningIndex;
+            var s = segments;
+            var cs = calculatedSegments.SliceWhile(s.Length);
+            for (nuint i = 0; i < s.Length; i++)
+            {
+                var segment = s.ElementAtUnchecked(i);
+                cs.ElementAtUnchecked(i) = new(segment, runningIndex);
+                runningIndex = checked(runningIndex + segment.Length);
+            }
+            return runningIndex;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool ConstructSegments(ref nuint runningIndex, ReadOnlyNativeSpan<ReadOnlyNativeMemory<T>> segments, NativeSpan<ReadOnlySequenceSegment<T>> calculatedSegments)
+        {
+            nuint currentRunningIndex = runningIndex;
+            var s = segments;
+            var cs = calculatedSegments.SliceWhile(s.Length);
+            bool success = true;
+            for (nuint i = 0; success && i < s.Length; i++)
+            {
+                var segment = s.ElementAtUnchecked(i);
+                cs.ElementAtUnchecked(i) = new(segment, currentRunningIndex);
+                var newRunningIndex = currentRunningIndex + segment.Length;
+                success &= newRunningIndex >= currentRunningIndex;
+                currentRunningIndex = newRunningIndex;
+            }
+            if (success) runningIndex = currentRunningIndex;
+            return success;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static nuint ReconstructSegments(NativeSpan<ReadOnlySequenceSegment<T>> calculatedSegments)
+        {
+            nuint currentRunningIndex = 0;
+            if (!calculatedSegments.IsEmpty)
+            {
+                var cs = calculatedSegments;
+                var headMemory = cs.Head.Memory;
+                currentRunningIndex = headMemory.Length;
+                cs.Head = new(headMemory, 0);
+                cs = cs.Slice(1);
+                for (nuint i = 0; i < cs.Length; i++)
+                {
+                    var segment = cs.ElementAtUnchecked(i).Memory;
+                    cs.ElementAtUnchecked(i) = new(segment, currentRunningIndex);
+                    currentRunningIndex = checked(currentRunningIndex + segment.Length);
+                }
+            }
+            return currentRunningIndex;
         }
 
 #pragma warning disable S1168 // Empty arrays and collections should be returned instead of null
@@ -188,13 +213,23 @@ namespace ModernMemory.Buffers
         public bool IsSingleSegment => segments.Length == 1;
         public SlimSequencePosition Start => IsEmpty ? default : new(0, firstIndex);
         public SlimSequencePosition End => IsEmpty ? default : new(segments.Length - 1, endIndex);
-        public ReadOnlyNativeMemory<T> First => segments.Span.IsEmpty ? default : segments.Span[0].Memory;
+
+        public ReadOnlyNativeMemory<T> First => segments.Span.IsEmpty ? ReadOnlyNativeMemory<T>.Empty : segments.Span[0].Memory;
+
         public ReadOnlyNativeSpan<T> FirstSpan => First.Span;
 
         public nuint GetOffset(SlimSequencePosition position)
         {
-            AssertPosition(position, out _, out var offset);
+            AssertPosition(position, out _, out var offset, true);
             return offset;
+        }
+
+        public nuint GetSize(SlimSequencePosition start, SlimSequencePosition end)
+        {
+            if (start == end) return 0;
+            AssertPosition(start, out _, out var startPosition);
+            AssertPosition(end, out _, out var endPosition, true);
+            return endPosition - startPosition;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -467,10 +502,6 @@ namespace ModernMemory.Buffers
 
     public static class ReadOnlyMemorySequence
     {
-        public static ReadOnlyMemorySequence<T> Create<T>(ReadOnlyNativeSpan<T[]> arrays)
-            => new(arrays);
-        public static ReadOnlyMemorySequence<T> Create<T>(NativeSpan<T[]> arrays)
-            => new(arrays);
         public static ReadOnlyMemorySequence<T> Create<T>(ReadOnlySpan<T[]> arrays)
             => new(arrays);
         public static ReadOnlyMemorySequence<T> Create<T>(Span<T[]> arrays)

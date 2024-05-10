@@ -12,7 +12,9 @@ namespace ModernMemory.Sorting
 
     public readonly struct UnstableBlockMergeSort : ISortAlgorithm
     {
-        public static void SortByStaticComparer<T, TStaticComparisonProxy>(NativeSpan<T> values) where TStaticComparisonProxy : unmanaged, IStaticComparer<T>
+        public static void Sort<T, TLightweightComparer>(NativeSpan<T?> values, in TLightweightComparer comparer) where TLightweightComparer : struct, ILightweightComparer<T, TLightweightComparer> => throw new NotImplementedException();
+
+        public static void SortByStaticComparer<T, TStaticComparisonProxy>(NativeSpan<T?> values) where TStaticComparisonProxy : unmanaged, IStaticComparer<T>
         {
 
         }

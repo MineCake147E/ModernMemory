@@ -6,8 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-
-using ModernMemory.Buffers.DataFlow;
+using ModernMemory.DataFlow;
 
 namespace ModernMemory.Randomness
 {

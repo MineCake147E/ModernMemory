@@ -110,13 +110,13 @@ namespace ModernMemory.Tests.Sorting
 
         private static void GenerateValues(Span<ulong> values, int uniqueValues = -1)
         {
-            if (uniqueValues == 1)
-            {
-                values.Clear();
-                return;
-            }
             if (uniqueValues >= 0)
             {
+                if ((uint)uniqueValues < 2)
+                {
+                    values.Clear();
+                    return;
+                }
                 var j = 0;
                 var (streak, maxExtendedValues) = int.DivRem(values.Length, uniqueValues);
                 var rem = values;
