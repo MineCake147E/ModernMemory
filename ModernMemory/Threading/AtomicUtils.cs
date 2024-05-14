@@ -43,5 +43,33 @@ namespace ModernMemory.Threading
         /// <inheritdoc cref="Volatile.Write(ref uint, uint)"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void StoreValue(ref uint location, bool value) => Volatile.Write(ref location, Unsafe.BitCast<bool, byte>(value));
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static nuint Add(ref nuint location, nuint value)
+        {
+            unchecked
+            {
+                if (Unsafe.SizeOf<nuint>() == Unsafe.SizeOf<ulong>())
+                {
+                    return (nuint)Interlocked.Add(ref Unsafe.As<nuint, ulong>(ref location), value);
+                }
+                if (Unsafe.SizeOf<nuint>() == Unsafe.SizeOf<uint>())
+                {
+                    return Interlocked.Add(ref Unsafe.As<nuint, uint>(ref location), (uint)value);
+                }
+                return AddSlow(ref location, value);
+            }
+
+            static nuint AddSlow(ref nuint location, nuint value)
+            {
+                nuint v, nv;
+                do
+                {
+                    v = location;
+                    nv = v + value;
+                } while (Interlocked.CompareExchange(ref location, nv, v) == v);
+                return nv;
+            }
+        }
     }
 }

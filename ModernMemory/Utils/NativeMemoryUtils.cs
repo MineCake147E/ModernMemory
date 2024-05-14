@@ -162,9 +162,7 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static unsafe void Prefetch<T>(ref readonly T pointer)
         {
-#if DEBUG
-            _ = pointer!;
-#else
+#if !DEBUG
             if (Sse.IsSupported)
             {
                 Sse.Prefetch0(Unsafe.AsPointer(ref Unsafe.AsRef(in pointer)));

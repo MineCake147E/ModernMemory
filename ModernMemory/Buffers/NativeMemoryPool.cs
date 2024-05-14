@@ -12,6 +12,8 @@ namespace ModernMemory.Buffers
     {
         private static readonly SharedNativeMemoryPool<T> SharedPool = new();
 
+        internal static readonly FullAllocatingNativeMemoryPool<T> SharedAllocatingPool = new();
+
         public static NativeMemoryPool<T> Shared => SharedPool;
 
         public abstract nuint MaxNativeBufferSize { get; }

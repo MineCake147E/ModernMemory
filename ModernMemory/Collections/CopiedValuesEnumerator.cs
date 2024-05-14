@@ -6,6 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Buffers;
+
 namespace ModernMemory.Collections
 {
     public sealed class CopiedValuesEnumerator<T> : IEnumerator<T>
@@ -13,9 +15,11 @@ namespace ModernMemory.Collections
         ArrayOwner<T>? owner;
         ReadOnlyNativeMemory<T>.Enumerator enumerator;
 
-        public CopiedValuesEnumerator(ReadOnlyNativeSpan<T> values)
+        public CopiedValuesEnumerator(ReadOnlyNativeSpan<T> values) : this(values, NativeMemoryPool<T>.Shared) { }
+
+        internal CopiedValuesEnumerator(ReadOnlyNativeSpan<T> values, NativeMemoryPool<T> pool)
         {
-            var o = owner = new(values.Length);
+            var o = owner = new(values.Length, pool);
             var om = o.NativeMemory.Slice(0, values.Length);
             values.CopyAtMostTo(om.Span);
             enumerator = om.GetMemoryEnumerator();

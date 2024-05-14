@@ -16,6 +16,12 @@ namespace ModernMemory.Threading
         {
         }
 
+        public DisposableValueSpinLockSlim(bool isDisposed)
+        {
+            var m = isDisposed ? 1 : 0;
+            lockField = -m;
+        }
+
         public readonly bool IsDisposed
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -29,7 +35,7 @@ namespace ModernMemory.Threading
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void Exit() => Interlocked.CompareExchange(ref lockField, 0, 1);
+        internal void Exit() => Volatile.Write(ref lockField, 0);
 
         public void Dispose() => Interlocked.CompareExchange(ref lockField, -1, 1);
 
@@ -55,7 +61,7 @@ namespace ModernMemory.Threading
                 get => !Unsafe.IsNullRef(in spinLock);
             }
 
-            public readonly bool IsHeld
+            public readonly bool IsHolding
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get

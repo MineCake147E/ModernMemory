@@ -34,9 +34,16 @@ namespace ModernMemory
             SetOwner(new(owner));
         }
 
-        public ArrayOwner(nuint minimumLength)
+        internal ArrayOwner(MemoryOwnerContainer<T> owner)
         {
-            SetOwner(NativeMemoryPool<T>.Shared.Rent(minimumLength));
+            SetOwner(owner);
+        }
+
+        public ArrayOwner(nuint minimumLength) : this(minimumLength, NativeMemoryPool<T>.Shared) { }
+
+        public ArrayOwner(nuint minimumLength, NativeMemoryPool<T> pool)
+        {
+            SetOwner(pool.Rent(minimumLength));
         }
 
         private ArrayOwner(bool empty = false)

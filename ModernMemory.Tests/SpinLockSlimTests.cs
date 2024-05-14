@@ -19,7 +19,7 @@ namespace ModernMemory.Tests
             ValueSpinLockSlim spinLock = new();
             using var q = spinLock.Enter();
             var handleValid = q.IsValid;
-            var handleHeld = q.IsHeld;
+            var handleHeld = q.IsHolding;
             var valueLockHeld = spinLock.IsHeld;
             Assert.Multiple(() =>
             {
@@ -35,11 +35,11 @@ namespace ModernMemory.Tests
             ValueSpinLockSlim spinLock = new();
             var q = spinLock.Enter();
             var handleValidBeforeExit = q.IsValid;
-            var handleHeldBeforeExit = q.IsHeld;
+            var handleHeldBeforeExit = q.IsHolding;
             var valueLockHeldBeforeExit = spinLock.IsHeld;
             q.Dispose();
             var handleValidAfterExit = q.IsValid;
-            var handleHeldAfterExit = q.IsHeld;
+            var handleHeldAfterExit = q.IsHolding;
             var valueLockHeldAfterExit = spinLock.IsHeld;
             Assert.Multiple(() =>
             {
@@ -77,13 +77,13 @@ namespace ModernMemory.Tests
                 Assert.That(boxedLock.Value.IsHeld);
                 var tryEnterHandle = boxedLock.TryEnter();
                 Assert.That(!tryEnterHandle.IsValid);
-                Assert.That(!tryEnterHandle.IsHeld);
+                Assert.That(!tryEnterHandle.IsHolding);
                 var e0 = sw.Elapsed;
                 mres2.Set();
                 var e1 = sw.Elapsed;
                 using var l = boxedLock.Enter();
                 var e2 = sw.Elapsed;
-                Assert.That(l.IsHeld);
+                Assert.That(l.IsHolding);
                 Console.WriteLine($"[Main] e0: {e0}");
                 Console.WriteLine($"[Main] e1: {e1}");
                 Console.WriteLine($"[Main] e2: {e2}");

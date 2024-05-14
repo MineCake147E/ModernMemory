@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -19,7 +20,7 @@ namespace ModernMemory.Collections
     {
         private DisposableValueSpinLockSlim mutateLock = new();
         private nuint count = 0;
-        MemoryResizer<T> resizer;
+        private MemoryResizer<T> resizer;
 
         internal NativeMemory<T> NativeMemory => resizer.NativeMemory;
 
@@ -55,7 +56,7 @@ namespace ModernMemory.Collections
         public void Add(T item)
         {
             using var acquiredLock = mutateLock.Enter();
-            if (acquiredLock.IsHeld)
+            if (acquiredLock.IsHolding)
             {
                 EnsureCapacityToAddInternal(1);
                 Writable[0] = item;
@@ -69,7 +70,7 @@ namespace ModernMemory.Collections
         {
             if (items.IsEmpty) return;
             using var acquiredLock = mutateLock.Enter();
-            if (acquiredLock.IsHeld)
+            if (acquiredLock.IsHolding)
             {
                 EnsureCapacityToAddInternal(items.Length);
                 var m = items.CopyAtMostTo(Writable);
@@ -78,10 +79,38 @@ namespace ModernMemory.Collections
             }
         }
 
+        public bool TryAdd(T item)
+        {
+            using var acquiredLock = mutateLock.TryEnter();
+            if (acquiredLock.IsHolding)
+            {
+                EnsureCapacityToAddInternal(1);
+                Writable[0] = item;
+                count++;
+            }
+            return acquiredLock.IsHolding;
+        }
+
+        public bool TryAdd(ReadOnlySpan<T> items) => TryAdd((ReadOnlyNativeSpan<T>)items);
+
+        public bool TryAdd(ReadOnlyNativeSpan<T> items)
+        {
+            if (items.IsEmpty) return true;
+            using var acquiredLock = mutateLock.TryEnter();
+            if (acquiredLock.IsHolding)
+            {
+                EnsureCapacityToAddInternal(items.Length);
+                var m = items.CopyAtMostTo(Writable);
+                count += m;
+                Debug.Assert(m == items.Length);
+            }
+            return acquiredLock.IsHolding;
+        }
+
         public void Clear()
         {
             using var acquiredLock = mutateLock.Enter();
-            if (acquiredLock.IsHeld)
+            if (acquiredLock.IsHolding)
             {
                 VisibleValues.ClearIfReferenceOrContainsReferences();
                 count = 0;
@@ -94,6 +123,15 @@ namespace ModernMemory.Collections
             EnsureCapacityToAddInternal(size);
         }
 
+        public DisposableValueSpinLockSlim.AcquiredLock GetAddBufferAtMost(out NativeSpan<T> buffer, nuint count)
+        {
+            var a = mutateLock.Enter();
+            var destination = Writable;
+            buffer = destination.SliceWhileIfLongerThan(count);
+            this.count += count;
+            return a;
+        }
+
         public bool IsLocked => mutateLock.IsHeld;
 
         public DisposableValueSpinLockSlim.AcquiredLock EnterLockForMutation() => mutateLock.Enter();
@@ -103,8 +141,8 @@ namespace ModernMemory.Collections
             using var l = mutateLock.Enter();
             var vv = VisibleValues;
             if (vv.IsEmpty || predicate is null) return 0;
-            nuint current = vv.Length;
-            nuint lastSurvived = current - 1;
+            var current = vv.Length;
+            var lastSurvived = current - 1;
             while (--current < vv.Length)
             {
                 ref var currentItem = ref vv[current];
@@ -126,8 +164,8 @@ namespace ModernMemory.Collections
             using var l = mutateLock.Enter();
             var vv = VisibleValues;
             if (vv.IsEmpty || predicate is null) return 0;
-            nuint current = vv.Length;
-            nuint lastSurvived = current - 1;
+            var current = vv.Length;
+            var lastSurvived = current - 1;
             var purgeCountLimited = writer.TryGetRemainingElementsToWrite(out var allowedPurges);
             if (!purgeCountLimited || allowedPurges > current) allowedPurges = current;
             while (--current < vv.Length)
@@ -136,7 +174,7 @@ namespace ModernMemory.Collections
                 ref var lastSurvivedItem = ref vv[lastSurvived];
                 if (predicate(currentItem))
                 {
-                    // We need to swap them in order to write purged values to writer.
+                    // We need to swap them in order to write purged values to buffer.
                     (lastSurvivedItem, currentItem) = (currentItem, lastSurvivedItem);
                     lastSurvived--;
                     if (vv.Length - lastSurvived > allowedPurges) break;
@@ -151,12 +189,97 @@ namespace ModernMemory.Collections
             return s.Length;
         }
 
+        public bool TryPop(out T? value)
+        {
+            Unsafe.SkipInit(out value);
+            using var l = mutateLock.TryEnter();
+            var vv = VisibleValues;
+            var v = l.IsHolding && !vv.IsEmpty;
+            if (v)
+            {
+                value = vv.Tail;
+            }
+            if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                vv.Tail = default!;
+            }
+            count -= v ? 1u : 0;
+            return v;
+        }
+
+        public bool TryPop(out T? value, ulong spinCount)
+        {
+            Unsafe.SkipInit(out value);
+            using var l = mutateLock.TryEnterBySpin(spinCount);
+            var vv = VisibleValues;
+            var v = l.IsHolding && !vv.IsEmpty;
+            if (v)
+            {
+                value = vv.Tail;
+            }
+            if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                vv.Tail = default!;
+            }
+            count -= v ? 1u : 0;
+            return v;
+        }
+
+        public bool TryPopSpinning(out T? value)
+        {
+            value = default;
+            if (count == 0) return false;
+            using var l = mutateLock.Enter();
+            var vv = VisibleValues;
+            var v = !vv.IsEmpty;
+            if (v)
+            {
+                value = vv.Tail;
+            }
+            if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                vv.Tail = default!;
+            }
+            count -= v ? 1u : 0;
+            return v;
+        }
+
+        public bool TryPopSpinningWhileNotNull([NotNullWhen(true)] out T? value)
+        {
+            T? res = default;
+            if (count > 0)
+            {
+                using var l = mutateLock.Enter();
+                var vv = VisibleValues;
+                var c = vv.Length - 1;
+                var c2 = c;
+                if (c2 < vv.Length)
+                {
+                    do
+                    {
+                        c = c2;
+                        res = vv.ElementAtUnchecked(c2);
+                    } while (res is null && --c2 < vv.Length);
+                    count = c;
+                    if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                    {
+                        vv.Slice(c).Clear();
+                    }
+                }
+            }
+            value = res;
+            return res is not null;
+        }
+
         public void PurgeTail(nuint count)
         {
             using var l = mutateLock.Enter();
             var vv = VisibleValues;
             if (vv.Length < count) count = vv.Length;
-            vv.Slice(vv.Length - count).ClearIfReferenceOrContainsReferences();
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            {
+                vv.Slice(vv.Length - count).Clear();
+            }
             this.count = vv.Length - count;
         }
 

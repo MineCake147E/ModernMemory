@@ -48,7 +48,7 @@ namespace ModernMemory.Threading
                 get => !Unsafe.IsNullRef(ref spinLock);
             }
 
-            public bool IsHeld
+            public bool IsHolding
             {
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 get
