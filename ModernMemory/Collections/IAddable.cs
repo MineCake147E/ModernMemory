@@ -13,7 +13,6 @@ namespace ModernMemory.Collections
         void EnsureCapacityToAdd(nuint size) { }
 
         void Add(T item);
-        void Add(ReadOnlySpan<T> items) => Add((ReadOnlyNativeSpan<T>)items);
         void Add(ReadOnlyNativeSpan<T> items);
         void Add(ReadOnlySequenceSlim<T> items)
         {
@@ -30,6 +29,7 @@ namespace ModernMemory.Collections
                 Add(items[i]);
             }
         }
+        void AddRange(ReadOnlySpan<T> items) => Add((ReadOnlyNativeSpan<T>)items);
         void AddRange<TEnumerable>(TEnumerable collection) where TEnumerable : IEnumerable<T>
         {
             foreach (var item in collection)

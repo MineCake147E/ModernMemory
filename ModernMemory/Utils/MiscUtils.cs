@@ -11,8 +11,6 @@ using System.Runtime.Intrinsics.X86;
 using System.Text;
 using System.Threading.Tasks;
 
-using ModernMemory.Threading;
-
 namespace ModernMemory
 {
     public static class MiscUtils
@@ -35,39 +33,42 @@ namespace ModernMemory
         [ThreadStatic]
         private static nuint rngState;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe nuint ThreadStaticRandom(nuint entropy)
         {
             ref var m = ref rngState;
-            var e2 = (nuint)Unsafe.AsPointer(ref m);
-            e2 ^= e2 << 7;
             var c = m;
-            var nv = c ^ entropy;
-            e2 = (e2 & ~(nuint)3) | 1;
-            nv = nv * 65537 + e2;
+            var e2 = entropy + (nuint)Unsafe.AsPointer(ref m);
+            e2 ^= e2 << 13;
+            e2 ^= e2 >> 32;
+            var nv = c;
+            e2 |= 1;
+            nv = nv * unchecked((nuint)6364136223846793005ul) + e2;
             m = nv;
             return c;
         }
 
-        public static nuint IncrementRandomized(ref nuint counter)
+        public static nuint IncrementRandomized(ref nuint counter, int precision = 13)
         {
             var count = counter;
-            nuint delta = 1;
-            if (count > 0)
+            nuint delta = count < nuint.MaxValue ? 1u : 0;
+            switch (count >> precision)
             {
-                var lc = BitOperations.LeadingZeroCount((nuint)0) - 1 - BitOperations.LeadingZeroCount(counter);
-                if (lc >= 13)
-                {
-                    delta <<= lc - 12;
-                    nuint v = 0;
-                    var span = MemoryMarshal.AsBytes(new Span<nuint>(ref v));
-                    Random.Shared.NextBytes(span);
+                case > 0:
+                    var lc = BitOperations.LeadingZeroCount((nuint)0) - BitOperations.LeadingZeroCount(count);
+                    delta <<= lc - precision;
+                    nuint v = ThreadStaticRandom(count);
                     if ((v & (delta - 1)) > 0)
                     {
-                        delta = 0;
+                        break;
                     }
-                }
+#pragma warning disable S907 // "goto" statement should not be used
+                    goto default;
+#pragma warning restore S907 // "goto" statement should not be used
+                default:
+                    AtomicUtils.Add(ref counter, delta);
+                    break;
             }
-            if (delta > 0) AtomicUtils.Add(ref counter, delta);
             return count;
         }
 

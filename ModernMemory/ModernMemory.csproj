@@ -20,7 +20,6 @@
   <ItemGroup>
     <Folder Include="Buffers\Async\" />
     <Folder Include="Collections\Sorting\" />
-    <Folder Include="Concurrent\" />
     <Folder Include="NativeSpanFactories\" />
   </ItemGroup>
 

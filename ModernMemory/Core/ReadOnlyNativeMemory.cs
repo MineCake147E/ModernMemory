@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -14,48 +15,82 @@ using ModernMemory.Collections;
 
 namespace ModernMemory
 {
-    [StructLayout(LayoutKind.Sequential)]
-    public readonly partial struct ReadOnlyNativeMemory<T> : ISpanEnumerable<T>, IMemoryEnumerable<T>
+    [StructLayout(LayoutKind.Auto)]
+    public readonly partial struct ReadOnlyNativeMemory<T> : ISpanEnumerable<T>, IMemoryEnumerable<T>, IEquatable<ReadOnlyNativeMemory<T>>
     {
-        private readonly ReadOnlyNativeSpanFactory nativeSpanFactory;
+        internal readonly object? underlyingObject;
         private readonly nuint start;
+#pragma warning disable IDE0032 // Use auto property
+        private readonly nuint length;
+#pragma warning restore IDE0032 // Use auto property
+        internal readonly MemoryType type;
 
-        public nuint Length { get; }
+        /// <summary>
+        /// Gets the number of items in the current instance.
+        /// </summary>
+        /// <internalValue>The number of items in the current instance.</internalValue>
+        public nuint Length => length;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ReadOnlyNativeMemory(MemoryType type, object? underlyingObject, nuint start, nuint length) : this()
+        {
+            this.type = type;
+            this.underlyingObject = underlyingObject;
+            this.start = start;
+            this.length = length;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ReadOnlyNativeMemory(NativeMemoryManager<T>? nativeSpanFactory, nuint start, nuint length)
         {
-            if (length > 0 && nativeSpanFactory is not null)
+            Unsafe.SkipInit(out this);
+            var newType = MemoryType.NativeMemoryManager;
+            var newUnderlyingObject = nativeSpanFactory;
+            var newStart = start;
+            var newLength = length;
+            if (newLength == 0 || nativeSpanFactory is null)
             {
-                this.nativeSpanFactory = new(nativeSpanFactory);
-                this.start = start;
-                Length = length;
+                newUnderlyingObject = null;
+                newStart = 0;
+                newLength = 0;
             }
-            else
-            {
-                this = default;
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal ReadOnlyNativeMemory(ReadOnlyNativeSpanFactory nativeSpanFactory, nuint start, nuint length)
-        {
-            if (length > 0 && !nativeSpanFactory.IsEmpty)
-            {
-                this.nativeSpanFactory = nativeSpanFactory;
-                this.start = start;
-                Length = length;
-            }
-            else
-            {
-                this = default;
-            }
+            this = new(newType, newUnderlyingObject, newStart, newLength);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlyNativeMemory(ReadOnlyMemory<T> memory)
         {
-            this = memory.IsEmpty ? default : new(new ReadOnlyNativeSpanFactory(memory), 0, (nuint)memory.Length);
+            Unsafe.SkipInit(out this);
+            var newType = MemoryType.MemoryManager;
+            object? newUnderlyingObject = null;
+            nuint newStart = 0;
+            nuint newLength = 0;
+            if (!memory.IsEmpty)
+            {
+                if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char)
+                    && MemoryMarshal.TryGetString(Unsafe.As<ReadOnlyMemory<T>, ReadOnlyMemory<char>>(ref memory), out var nst, out var sStart, out var sLength))
+                {
+                    newUnderlyingObject = nst;
+                    newType = MemoryType.String;
+                    newStart = (uint)sStart;
+                    newLength = (uint)sLength;
+                }
+                else if (MemoryMarshal.TryGetMemoryManager<T, MemoryManager<T>>(memory, out var manager, out var intStart, out var intLength))
+                {
+                    newUnderlyingObject = manager;
+                    newType = manager is NativeMemoryManager<T> ? MemoryType.NativeMemoryManager : newType;
+                    newStart = (uint)intStart;
+                    newLength = (uint)intLength;
+                }
+                else if (MemoryMarshal.TryGetArray(memory, out var segment))
+                {
+                    newUnderlyingObject = segment.Array;
+                    newType = MemoryType.Array;
+                    newStart = (uint)segment.Offset;
+                    newLength = (uint)segment.Count;
+                }
+            }
+            this = new(newType, newUnderlyingObject, newStart, newLength);
         }
 
         /// <summary>
@@ -74,7 +109,7 @@ namespace ModernMemory
         public bool IsEmpty
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Length == 0;
+            get => length == 0;
         }
 
         /// <summary>
@@ -82,29 +117,111 @@ namespace ModernMemory
         /// </summary>
         public ReadOnlyNativeSpan<T> Span
         {
+            [SkipLocalsInit]
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => IsEmpty ? default : nativeSpanFactory.CreateReadOnlyNativeSpan(start, Length);
+            get
+            {
+                var t = type;
+                ref var head = ref Unsafe.NullRef<T>();
+                var newLength = length;
+                var medium = underlyingObject;
+                var localStart = start;
+                var lengthToValidate = nuint.MaxValue;
+                newLength = medium is null ? 0 : newLength;
+                if (medium is not null)
+                {
+                    switch (t)
+                    {
+                        case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
+                            Debug.Assert(medium is string);
+                            var ust = Unsafe.As<string>(medium);
+                            head = ref Unsafe.As<char, T>(ref Unsafe.Add(ref Unsafe.AsRef(in ust.GetPinnableReference()), checked((int)localStart)))!;
+                            lengthToValidate = (uint)ust.Length;
+                            break;
+                        case MemoryType.Array:
+                            Debug.Assert(medium is T[]);
+                            var array = Unsafe.As<T[]>(medium);
+                            head = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), localStart)!;
+                            lengthToValidate = (uint)array.Length;
+                            break;
+                        case MemoryType.NativeMemoryManager:
+                            Debug.Assert(medium is NativeMemoryManager<T>);
+                            var nativeMemoryManager = Unsafe.As<NativeMemoryManager<T>>(medium);
+                            var nativeSpan = nativeMemoryManager.CreateNativeSpan(localStart, newLength);
+                            head = ref nativeSpan.Head!;
+                            break;
+                        default:
+                            Debug.Assert(medium is MemoryManager<T>);
+                            var manager = Unsafe.As<MemoryManager<T>>(medium);
+                            var span = manager.GetSpan();
+                            head = ref span[checked((int)localStart)]!;
+                            lengthToValidate = (uint)span.Length;
+                            break;
+                    }
+                }
+                if (!MathUtils.IsRangeInRange(lengthToValidate, localStart, newLength))
+                {
+                    NativeMemoryCore.ThrowSliceExceptions(localStart, newLength, lengthToValidate);
+                }
+                return new ReadOnlyNativeSpan<T>(ref head, newLength);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe MemoryHandle Pin() => nativeSpanFactory.Pin(start);
+        public unsafe MemoryHandle Pin() => NativeMemoryCore.Pin<T>(type, underlyingObject, start, length);
 
-        public ReadOnlyMemory<T> GetHeadMemory() => nativeSpanFactory.GetHeadMemory();
-
+        public ReadOnlyMemory<T> GetHeadMemory()
+        {
+            ReadOnlyMemory<T> result = default;
+            var t = type;
+            var newLength = (int)nuint.Min(int.MaxValue, length);
+            var medium = underlyingObject;
+            var newStart = checked((int)start);
+            newLength = medium is null ? 0 : newLength;
+            if (medium is not null)
+            {
+                switch (t)
+                {
+                    case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
+                        Debug.Assert(medium is string);
+                        var ust = Unsafe.As<string>(medium);
+                        var cm = ust.AsMemory().Slice(newStart, newLength);
+                        result = Unsafe.As<ReadOnlyMemory<char>, ReadOnlyMemory<T>>(ref cm);
+                        break;
+                    case MemoryType.Array:
+                        Debug.Assert(medium is T[]);
+                        var array = Unsafe.As<T[]>(medium);
+                        result = array.AsMemory(newStart, newLength);
+                        break;
+                    default:
+                        Debug.Assert(medium is MemoryManager<T>);
+                        var manager = Unsafe.As<MemoryManager<T>>(medium);
+                        result = manager.Memory.Slice(newStart, newLength);
+                        break;
+                }
+            }
+            return result;
+        }
 
         #region Slice
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlyNativeMemory<T> Slice(nuint start)
         {
             var currentLength = Length;
             var ol = currentLength - start;
-            return ol <= currentLength ? new(nativeSpanFactory, this.start + start, ol) : ThrowSliceExceptions(start);
+            ReadOnlyNativeMemory<T> result = new(type, underlyingObject, this.start + start, ol);
+            return ol <= currentLength ? result : ThrowSliceExceptions(start);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ReadOnlyNativeMemory<T> Slice(nuint start, nuint length) => MathUtils.IsRangeInRange(Length, start, length)
-                ? new(nativeSpanFactory, this.start + start, length)
+        public ReadOnlyNativeMemory<T> Slice(nuint start, nuint length)
+        {
+            var result = new ReadOnlyNativeMemory<T>(type, underlyingObject, this.start + start, length);
+            return MathUtils.IsRangeInRange(Length, start, length)
+                ? result
                 : ThrowSliceExceptions(start, length);
+        }
 
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -165,10 +282,16 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static implicit operator ReadOnlyNativeMemory<T>(T[] memory) => new(memory);
 
+        public static bool operator ==(ReadOnlyNativeMemory<T> left, ReadOnlyNativeMemory<T> right) => left.Equals(right);
+        public static bool operator !=(ReadOnlyNativeMemory<T> left, ReadOnlyNativeMemory<T> right) => !(left == right);
+
         #endregion
 
         Enumerator ITypedEnumerable<T, Enumerator>.GetEnumerator() => new(this);
         public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(Span);
+        public override bool Equals(object? obj) => obj is ReadOnlyNativeMemory<T> memory && Equals(memory);
+        public bool Equals(ReadOnlyNativeMemory<T> other) => EqualityComparer<object?>.Default.Equals(underlyingObject, other.underlyingObject) && start.Equals(other.start) && length.Equals(other.length) && type == other.type;
+        public override int GetHashCode() => HashCode.Combine(underlyingObject, start, length, type);
 
         public struct Enumerator : IEnumerator<T>
         {

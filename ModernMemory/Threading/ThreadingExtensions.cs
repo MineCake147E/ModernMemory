@@ -24,6 +24,39 @@ namespace ModernMemory.Threading
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void StoreFence()
+        {
+            if (Sse.IsSupported)
+            {
+                Sse.StoreFence();
+                return;
+            }
+            Interlocked.MemoryBarrier();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void LoadFence()
+        {
+            if (Sse2.IsSupported)
+            {
+                Sse2.LoadFence();
+                return;
+            }
+            Interlocked.MemoryBarrier();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void MemoryFence()
+        {
+            if (Sse2.IsSupported)
+            {
+                Sse2.MemoryFence();
+                return;
+            }
+            Interlocked.MemoryBarrier();
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static bool GetIsFastYieldAvailable() => Environment.ProcessorCount > 1 && (X86Base.IsSupported || ArmBase.IsSupported);
     }

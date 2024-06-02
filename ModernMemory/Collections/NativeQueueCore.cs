@@ -11,10 +11,14 @@ using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
 using ModernMemory.DataFlow;
-using ModernMemory.Threading;
 
 namespace ModernMemory.Collections
 {
+
+    /// <summary>
+    /// The building block for various queue collection types.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     [CollectionBuilder(typeof(NativeCollectionBuilder), nameof(NativeCollectionBuilder.CreateCore))]
     internal partial struct NativeQueueCore<T> : INativeList<T>, INativeBufferWriter<T>, ISpanEnumerable<T>, IQueue<T>
     {
@@ -133,7 +137,7 @@ namespace ModernMemory.Collections
             readHead = 0;
         }
 
-        public T Dequeue() => TryDequeue(out var item) ? item : ThrowInsufficientItemsException<T>(0);
+        public T? Dequeue() => TryDequeue(out var item) ? item : ThrowInsufficientItemsException<T>(0);
 
         public void DequeueAll<TBufferWriter>(scoped ref TBufferWriter writer) where TBufferWriter : IBufferWriter<T>
         {
@@ -224,9 +228,9 @@ namespace ModernMemory.Collections
 
         public readonly ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(VisibleValues);
 
-        readonly IEnumerator<T> IEnumerable<T>.GetEnumerator() => new CopiedValuesEnumerator<T>(Span);
-
-        readonly IEnumerator IEnumerable.GetEnumerator() => new CopiedValuesEnumerator<T>(Span);
+        readonly IEnumerator<T> IEnumerable<T>.GetEnumerator() => GetCopiedValuesEnumerator();
+        internal readonly CopiedValuesEnumerator<T> GetCopiedValuesEnumerator() => new(Span);
+        readonly IEnumerator IEnumerable.GetEnumerator() => GetCopiedValuesEnumerator();
 
         public Memory<T> GetMemory(int sizeHint = 0)
         {
@@ -252,9 +256,9 @@ namespace ModernMemory.Collections
             return GetNativeSpan((nuint)sizeHint).GetHeadSpan();
         }
 
-        public readonly T Peek() => TryPeek(out var item) ? item : throw new InvalidOperationException("The Queue is empty!");
+        public readonly T? Peek() => TryPeek(out var item) ? item : throw new InvalidOperationException("The Queue is empty!");
 
-        public bool TryDequeue([MaybeNullWhen(false)] out T item)
+        public bool TryDequeue(out T? item)
         {
             Unsafe.SkipInit(out item);
             var m = VisibleValues;
@@ -278,7 +282,7 @@ namespace ModernMemory.Collections
 
         public NativeSpan<T> TryGetNativeSpan(nuint sizeHint = 0U) => sizeHint > ~writeHead ? Writable : GetNativeSpan(sizeHint);
 
-        public readonly bool TryPeek([MaybeNullWhen(false)] out T item)
+        public readonly bool TryPeek(out T? item)
         {
             Unsafe.SkipInit(out item);
             var m = VisibleValues;

@@ -107,30 +107,56 @@ namespace ModernMemory.Collections
             values.CopyTo(resizer.nativeMemory.Span);
         }
 
-        public void Resize(nuint newSize)
+        public bool Resize(nuint newSize, out MemoryOwnerContainer<T> oldOwner)
         {
             var oldData = nativeMemory.Span;
+            MemoryOwnerContainer<T> ownerSwapped = default;
             if (newSize > oldData.Length)
             {
-                var destination = Expand(newSize, out var ownerToDispose);
+                var destination = Expand(newSize, out ownerSwapped);
                 _ = oldData.CopyAtMostTo(destination);
-                if (ownerToDispose.HasOwner) ownerToDispose.Dispose();
+            }
+            oldOwner = ownerSwapped;
+            return !ownerSwapped.IsOwnerNull;
+        }
+
+        public void Resize(nuint newSize)
+        {
+            if (Resize(newSize, out var ownerToDispose))
+            {
+                ownerToDispose.Span.ClearIfReferenceOrContainsReferences();
+                ownerToDispose.Dispose();
             }
         }
 
-        public void Resize(ReadOnlyNativeSpan<T> values) => Resize(values.Length, values);
+        public bool Resize(ReadOnlyNativeSpan<T> values, out MemoryOwnerContainer<T> oldOwner) => Resize(values.Length, values, out oldOwner);
 
-        public void Resize(nuint newSize, ReadOnlyNativeSpan<T> values)
+        public void Resize(ReadOnlyNativeSpan<T> values)
+        {
+            if (Resize(values.Length, values, out var ownerToDispose))
+            {
+                ownerToDispose.Span.ClearIfReferenceOrContainsReferences();
+                ownerToDispose.Dispose();
+            }
+        }
+
+        public bool Resize(nuint newSize, ReadOnlyNativeSpan<T> values, out MemoryOwnerContainer<T> oldOwner)
         {
             ArgumentOutOfRangeException.ThrowIfLessThan(newSize, values.Length);
             var destination = nativeMemory.Span;
-            MemoryOwnerContainer<T> ownerToDispose = default;
+            MemoryOwnerContainer<T> ownerSwapped = default;
             if (newSize > destination.Length)
             {
-                destination = Expand(newSize, out ownerToDispose);
+                destination = Expand(newSize, out ownerSwapped);
             }
             _ = values.CopyAtMostTo(destination);
-            if (!ownerToDispose.IsOwnerNull)
+            oldOwner = ownerSwapped;
+            return !ownerSwapped.IsOwnerNull;
+        }
+
+        public void Resize(nuint newSize, ReadOnlyNativeSpan<T> values)
+        {
+            if (Resize(newSize, values, out var ownerToDispose))
             {
                 ownerToDispose.Span.ClearIfReferenceOrContainsReferences();
                 ownerToDispose.Dispose();

@@ -258,8 +258,16 @@ namespace ModernMemory
         [DoesNotReturn]
         private NativeSpan<T> ThrowSliceExceptions(nuint start, nuint length)
         {
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(start, Length);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(length, Length - start);
+            ThrowSliceExceptions(start, length, Length);
+            throw new InvalidOperationException("Something went wrong!");
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [DoesNotReturn]
+        internal static void ThrowSliceExceptions(nuint start, nuint length, nuint sourceLength)
+        {
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(start, sourceLength);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(length, sourceLength - start);
             throw new InvalidOperationException("Something went wrong!");
         }
 
@@ -281,13 +289,17 @@ namespace ModernMemory
         public bool TrySlice(out NativeSpan<T> nativeSpan, nuint start, nuint length)
         {
             var currentLength = Length;
-            if (MathUtils.IsRangeInRange(currentLength, start, length))
+            ref var newHead = ref Unsafe.NullRef<T>();
+            ref var newHeadCandidate = ref Unsafe.Add(ref head, start);
+            nuint newLength = 0;
+            var res = MathUtils.IsRangeInRange(currentLength, start, length);
+            if (res)
             {
-                nativeSpan = new(ref Unsafe.Add(ref head, start), length);
-                return true;
+                newHead = ref newHeadCandidate;
+                newLength = length;
             }
-            nativeSpan = default;
-            return false;
+            nativeSpan = new(ref newHead, newLength);
+            return res;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]

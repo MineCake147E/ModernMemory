@@ -26,5 +26,7 @@ namespace ModernMemory.Collections
                 clearable.Clear();
             }
         }
+
+        public static IEnumerator<T> EmptyEnumerator<T>() => Enumerable.Empty<T>().GetEnumerator();
     }
 }

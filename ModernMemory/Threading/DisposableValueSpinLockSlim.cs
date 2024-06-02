@@ -37,7 +37,10 @@ namespace ModernMemory.Threading
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void Exit() => Volatile.Write(ref lockField, 0);
 
-        public void Dispose() => Interlocked.CompareExchange(ref lockField, -1, 1);
+        public void Dispose() => Interlocked.CompareExchange(ref lockField, -1, 0);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void DisposeInternal() => Volatile.Write(ref lockField, -1);
 
         public ref struct AcquiredLock
         {
@@ -85,13 +88,13 @@ namespace ModernMemory.Threading
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void DisposeLock()
+            public void ExitAndDispose()
             {
                 ref var t = ref spinLock;
                 if (!Unsafe.IsNullRef(ref t))
                 {
                     spinLock = ref Unsafe.NullRef<DisposableValueSpinLockSlim>();
-                    t.Dispose();
+                    t.DisposeInternal();
                 }
             }
         }

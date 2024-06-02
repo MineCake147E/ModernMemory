@@ -14,7 +14,7 @@ namespace ModernMemory.Randomness
         private Random Source { get; } = random ?? throw new ArgumentNullException(nameof(random));
 
         private const int BlockSize = 16;
-        private const int LengthMask = 0x7FFF_FFFF & -BlockSize;
+        private const int LengthMask = 0x7fff_ffff & -BlockSize;
         private const int ShiftBits = 4;
 
         public uint GenerateUnit => BlockSize;

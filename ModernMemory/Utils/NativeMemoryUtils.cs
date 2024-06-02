@@ -104,57 +104,58 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static ReadOnlyNativeSpan<byte> AsBytes<T>(ReadOnlyNativeSpan<T> span) where T : unmanaged => CreateReadOnlyNativeSpan(in As<T, byte>(in span.Head), checked(span.Length * (nuint)Unsafe.SizeOf<T>()));
 
-        /// <inheritdoc cref="MemoryMarshal.Cast{TFrom, TTo}(Span{TFrom})"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static NativeSpan<TTo> Cast<TFrom, TTo>(NativeSpan<TFrom> span) where TFrom : unmanaged where TTo : unmanaged
+        internal static nuint CalculateNewLength<TFrom, TTo>(nuint length)
         {
             if (Unsafe.SizeOf<TFrom>() == Unsafe.SizeOf<TTo>())
             {
-                return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), span.Length);
+                return length;
             }
-            if (Unsafe.SizeOf<TTo>() == Unsafe.SizeOf<byte>())
+            var numerator = (nuint)Unsafe.SizeOf<TFrom>();
+            var denominator = (nuint)Unsafe.SizeOf<TTo>();
+            var tz = BitOperations.TrailingZeroCount(numerator | denominator);
+            numerator >>= tz;
+            denominator >>= tz;
+            if (numerator >= denominator && numerator % denominator == 0)
             {
-                return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), checked(span.Length * (nuint)Unsafe.SizeOf<TFrom>()));
+                return MathUtils.MultiplyCheckedConstant(length, numerator / denominator);
             }
-            if (Unsafe.SizeOf<TFrom>() == Unsafe.SizeOf<byte>())
+            if (denominator >= numerator && denominator % numerator == 0)
             {
-                return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), span.Length / (nuint)Unsafe.SizeOf<TTo>());
+                return length / (denominator / numerator);
             }
-            if (Unsafe.SizeOf<TFrom>() > Unsafe.SizeOf<TTo>() && Unsafe.SizeOf<TFrom>() % Unsafe.SizeOf<TTo>() == 0)
+            if (denominator >= numerator)
             {
-                return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), checked(span.Length * ((nuint)Unsafe.SizeOf<TFrom>() / (nuint)Unsafe.SizeOf<TTo>())));
+                (var q, var r) = nuint.DivRem(length, denominator);
+                r *= numerator;
+                r /= denominator;
+                q *= numerator;
+                q += r;
+                return q;
             }
-            if (Unsafe.SizeOf<TTo>() > Unsafe.SizeOf<TFrom>() && Unsafe.SizeOf<TTo>() % Unsafe.SizeOf<TFrom>() == 0)
-            {
-                return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), span.Length / ((nuint)Unsafe.SizeOf<TTo>() / (nuint)Unsafe.SizeOf<TFrom>()));
-            }
-            var t = Math.BigMul(span.Length, (nuint)Unsafe.SizeOf<TFrom>(), out var low);
-            return CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), MathUtils.BigDivConstant((nuint)t, (nuint)low, (nuint)Unsafe.SizeOf<TTo>()));
+            var high = MathUtils.BigMulConstant(length, (uint)Unsafe.SizeOf<TFrom>(), out var low);
+            return MathUtils.BigDivConstant(high, low, (nuint)Unsafe.SizeOf<TTo>());
         }
+
+        /// <inheritdoc cref="MemoryMarshal.Cast{TFrom, TTo}(Span{TFrom})"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static NativeSpan<TTo> Cast<TFrom, TTo>(NativeSpan<TFrom> span) where TFrom : unmanaged where TTo : unmanaged
+            => CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), CalculateNewLength<TFrom, TTo>(span.Length));
 
         /// <inheritdoc cref="MemoryMarshal.Cast{TFrom, TTo}(ReadOnlySpan{TFrom})"/>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static ReadOnlyNativeSpan<TTo> Cast<TFrom, TTo>(ReadOnlyNativeSpan<TFrom> span) where TFrom : unmanaged where TTo : unmanaged
-        {
-            if (Unsafe.SizeOf<TFrom>() == Unsafe.SizeOf<TTo>())
-            {
-                return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), span.Length);
-            }
-            if (Unsafe.SizeOf<TTo>() == Unsafe.SizeOf<byte>())
-            {
-                return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), checked(span.Length * (nuint)Unsafe.SizeOf<TFrom>()));
-            }
-            if (Unsafe.SizeOf<TFrom>() == Unsafe.SizeOf<byte>())
-            {
-                return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), checked(span.Length / (nuint)Unsafe.SizeOf<TTo>()));
-            }
-            if (Unsafe.SizeOf<TFrom>() > Unsafe.SizeOf<TTo>() && Unsafe.SizeOf<TFrom>() % Unsafe.SizeOf<TTo>() == 0)
-            {
-                return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), checked(span.Length / ((nuint)Unsafe.SizeOf<TFrom>() / (nuint)Unsafe.SizeOf<TTo>())));
-            }
-            var t = Math.BigMul(span.Length, (ulong)Unsafe.SizeOf<TFrom>(), out var low);
-            return CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), checked(MathUtils.BigDivConstant((nuint)t, (nuint)low, (nuint)Unsafe.SizeOf<TTo>())));
-        }
+            => CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), CalculateNewLength<TFrom, TTo>(span.Length));
+
+        /// <inheritdoc cref="MemoryMarshal.Cast{TFrom, TTo}(Span{TFrom})"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static NativeSpan<TTo> CastUnsafe<TFrom, TTo>(NativeSpan<TFrom> span)
+            => CreateNativeSpan(ref Unsafe.As<TFrom, TTo>(ref span.Head), CalculateNewLength<TFrom, TTo>(span.Length));
+
+        /// <inheritdoc cref="MemoryMarshal.Cast{TFrom, TTo}(ReadOnlySpan{TFrom})"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static ReadOnlyNativeSpan<TTo> CastUnsafe<TFrom, TTo>(ReadOnlyNativeSpan<TFrom> span)
+            => CreateReadOnlyNativeSpan(in As<TFrom, TTo>(in span.Head), CalculateNewLength<TFrom, TTo>(span.Length));
         #endregion
 
         #region Processor Cache

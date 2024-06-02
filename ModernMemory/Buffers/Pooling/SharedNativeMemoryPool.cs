@@ -13,7 +13,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using ModernMemory.Allocation;
-using ModernMemory.Collections;
+using ModernMemory.Collections.Concurrent;
 using ModernMemory.Threading;
 
 namespace ModernMemory.Buffers.Pooling
@@ -33,9 +33,9 @@ namespace ModernMemory.Buffers.Pooling
         private readonly ConcurrentBag<PartitionedArrayMemoryOwner> sharedOwners = [];
         private readonly ConcurrentBag<ThreadLocalPool> trimmedOwnerPools = [];
 
-        private SharedNativeMemoryPool()
+        internal SharedNativeMemoryPool()
         {
-            sharedPool = new(this, true);
+            
         }
 
         public override MemoryOwnerContainer<T> Rent(nuint minBufferSize)
@@ -60,31 +60,24 @@ namespace ModernMemory.Buffers.Pooling
             private DisposableValueSpinLockSlim spinLock;
             private readonly uint id;
             private readonly SharedNativeMemoryPool<T> parent;
-            private readonly NativePile<PartitionedArrayMemoryOwner> ownerPool;
+            private readonly BlockingNativePile<PartitionedArrayMemoryOwner> ownerPool;
             private readonly ArrayOwner<PartitionedArrayPool?> partitionedArrayPools;
+
 
             private static volatile uint nextId = 0;
             private const uint SharedPoolId = uint.MaxValue;
 
-            public ThreadLocalPool(SharedNativeMemoryPool<T> parent, bool shared = false)
+            public ThreadLocalPool(SharedNativeMemoryPool<T> parent)
             {
-                id = shared ? SharedPoolId : Interlocked.Increment(ref nextId) - 1;
+                id = Interlocked.Increment(ref nextId) - 1;
                 ArgumentNullException.ThrowIfNull(parent);
                 this.parent = parent;
-                // Due to the growing nature of ownerPool, unless the pool itself is shared, it might be better using shared pool instead of allocating pool.
-                ownerPool = new(shared ? NativeMemoryPool<PartitionedArrayMemoryOwner>.SharedAllocatingPool : NativeMemoryPool<PartitionedArrayMemoryOwner>.Shared, 512);
+                // Due to the growing nature of ownerPool, it might be better using shared pool instead of allocating pool.
+                ownerPool = new(NativeMemoryPool<PartitionedArrayMemoryOwner>.Shared, 512);
                 var maxPartitionSize = RuntimeFeature.IsDynamicCodeCompiled ? PartitionedArrayMemoryManager<FixedArray4<uint>>.MaxPartitionSize : PartitionedArrayMemoryManager<FixedArray16<uint>>.MaxPartitionSize;
                 var maxPartitionSizeClass = BufferUtils.CalculatePartitionSizeClassIndex(maxPartitionSize, out var size);
                 if (size > maxPartitionSize && maxPartitionSize > 0) maxPartitionSizeClass--;
                 partitionedArrayPools = new(NativeMemoryPool<PartitionedArrayPool?>.SharedAllocatingPool.Rent(maxPartitionSizeClass + 1));
-                if (shared)
-                {
-                    var m = partitionedArrayPools.Span;
-                    for (nuint i = 0; i < m.Length; i++)
-                    {
-                        m[i] = new(i);
-                    }
-                }
             }
 
             public bool IsShared => id == SharedPoolId;
@@ -161,7 +154,7 @@ namespace ModernMemory.Buffers.Pooling
         {
             private DisposableValueSpinLockSlim spinLock;
             private readonly nuint partitionSize;
-            private NativePile<PartitionedArrayMemoryManagerBase>? memoryManagers;
+            private BlockingNativePile<PartitionedArrayMemoryManagerBase>? memoryManagers;
             private volatile nuint counter = 0;
 
             public bool IsInitialized => memoryManagers is { };
@@ -268,7 +261,7 @@ namespace ModernMemory.Buffers.Pooling
                 var a = spinLock.Enter(out var isDisposed);
                 if (!isDisposed && a.IsHolding)
                 {
-                    a.DisposeLock();
+                    a.ExitAndDispose();
                     memoryManagers = null;
                 }
             }

@@ -7,14 +7,9 @@ using System.Threading.Tasks;
 
 namespace ModernMemory.Buffers.Pooling
 {
-    public struct MemoryOwnerContainer<T> : INativeMemoryOwner<T>
+    public struct MemoryOwnerContainer<T>(INativeMemoryOwner<T>? owner) : INativeMemoryOwner<T>
     {
-        private INativeMemoryOwner<T>? owner;
-
-        public MemoryOwnerContainer(INativeMemoryOwner<T>? owner)
-        {
-            this.owner = owner;
-        }
+        private INativeMemoryOwner<T>? owner = owner;
 
         public readonly bool IsOwnerNull => owner is null;
 

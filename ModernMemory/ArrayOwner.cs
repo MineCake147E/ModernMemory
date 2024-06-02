@@ -13,7 +13,6 @@ using System.Threading.Tasks;
 using ModernMemory.Buffers;
 using ModernMemory.Buffers.Pooling;
 using ModernMemory.Collections;
-using ModernMemory.Threading;
 
 namespace ModernMemory
 {

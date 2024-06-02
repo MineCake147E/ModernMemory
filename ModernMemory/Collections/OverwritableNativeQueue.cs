@@ -57,7 +57,7 @@ namespace ModernMemory.Collections
         public void Add(T item) => core.Add(item);
         public void Advance(nuint count) => core.Advance(count);
         public void Clear() => core.Clear();
-        public T Dequeue() => core.Dequeue();
+        public T? Dequeue() => core.Dequeue();
         public void DequeueAll<TBufferWriter>(ref TBufferWriter writer) where TBufferWriter : IBufferWriter<T> => core.DequeueAll(ref writer);
         public void DequeueRange<TBufferWriter>(ref DataWriter<T, TBufferWriter> writer) where TBufferWriter : IBufferWriter<T> => core.DequeueRange(ref writer);
         public void DequeueRange<TBufferWriter>(ref TBufferWriter writer, nuint elements) where TBufferWriter : IBufferWriter<T> => core.DequeueRange(ref writer, elements);
@@ -72,12 +72,12 @@ namespace ModernMemory.Collections
         public NativeMemory<T> GetNativeMemory(nuint sizeHint = 0U) => core.GetNativeMemory(sizeHint);
         public NativeSpan<T> GetNativeSpan(nuint sizeHint = 0U) => core.GetNativeSpan(sizeHint);
         public Span<T> GetSpan(int sizeHint = 0) => core.GetSpan(sizeHint);
-        public T Peek() => core.Peek();
-        public bool TryDequeue([MaybeNullWhen(false)] out T item) => core.TryDequeue(out item);
+        public T? Peek() => core.Peek();
+        public bool TryDequeue(out T? item) => core.TryDequeue(out item);
         public bool TryGetMaxBufferSize(out nuint space) => core.TryGetMaxBufferSize(out space);
         public NativeMemory<T> TryGetNativeMemory(nuint sizeHint = 0U) => core.TryGetNativeMemory(sizeHint);
         public NativeSpan<T> TryGetNativeSpan(nuint sizeHint = 0U) => core.TryGetNativeSpan(sizeHint);
-        public bool TryPeek([MaybeNullWhen(false)] out T item) => core.TryPeek(out item);
+        public bool TryPeek(out T? item) => core.TryPeek(out item);
         IEnumerator<T> IEnumerable<T>.GetEnumerator() => ((IEnumerable<T>)core).GetEnumerator();
         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)core).GetEnumerator();
     }

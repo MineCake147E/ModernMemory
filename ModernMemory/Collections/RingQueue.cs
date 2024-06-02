@@ -32,7 +32,7 @@ namespace ModernMemory.Collections
 
         public bool IsEmpty => readHead == writeHead;
 
-        public T Peek() => values[readHead];
+        public T? Peek() => values[readHead];
 
         public int Peek(Span<T> destination)
         {
@@ -77,7 +77,7 @@ namespace ModernMemory.Collections
             return c;
         }
 
-        public T Dequeue()
+        public T? Dequeue()
         {
             var r = readHead;
             if (r != writeHead)

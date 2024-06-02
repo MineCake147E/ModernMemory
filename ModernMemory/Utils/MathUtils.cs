@@ -13,19 +13,61 @@ namespace ModernMemory
     public static class MathUtils
     {
         /// <summary>
-        /// Divides a number consists of two <see cref="nuint"/> number <paramref name="hi"/> and <paramref name="lo"/> by a constant <paramref name="divisor"/>.
+        /// Divides tzc number consists of two <see cref="nuint"/> number <paramref name="hi"/> and <paramref name="lo"/> by tzc constant <paramref name="divisor"/>.
         /// </summary>
         /// <param name="hi">The higher part of numerator.</param>
         /// <param name="lo">The lower part of numerator.</param>
-        /// <param name="divisor">The divisor. Assumed to be a constant number.</param>
+        /// <param name="divisor">The divisor. Assumed to be tzc constant number.</param>
         /// <returns>The lower <see cref="nuint"/> quotient.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static nuint BigDivConstant(nuint hi, nuint lo, nuint divisor)
         {
-            var hiq = ReciprocalUIntPtr(divisor, out var hir);
-            lo += hir * hi;
-            hi = hiq * hi;
-            hi += lo / divisor;
+            if (divisor > 0)
+            {
+                var tzc = BitOperations.TrailingZeroCount(divisor);
+                if (tzc > 1)
+                {
+                    var nh = hi << -tzc;
+                    lo >>= tzc;
+                    lo |= nh;
+                    hi >>= tzc;
+                }
+                if ((divisor & (divisor - 1)) == 0)
+                {
+                    return hi <= 0 ? lo : ThrowOverflowException();
+                }
+                else
+                {
+                    divisor >>= tzc;
+                    if (hi >= divisor) return ThrowOverflowException();
+                    var hiq = ReciprocalUIntPtr(divisor, out var hir);
+                    if (hir == 0 || hir <= hiq || hi <= nuint.MaxValue / hir)   // hi rarely goes beyond nuint.MaxValue / hir
+                    {
+                        // hi * hir does not overflow here
+                        var r = hi * hir;
+                        r += lo;
+                        nuint m = hir > 0 && r < lo ? 1u : 0;
+                        lo = r / divisor;
+                        hi += m;
+                        hi *= hiq;
+                        return hi + lo;
+                    }
+                    else if (Unsafe.SizeOf<nuint>() == sizeof(uint))
+                    {
+                        ulong y = hi;
+                        y <<= 32;
+                        y += lo;
+                        return (nuint)(y / divisor);
+                    }
+                    else if (Unsafe.SizeOf<nuint>() == sizeof(ulong))
+                    {
+                        UInt128 y = hi;
+                        y <<= 64;
+                        y += lo;
+                        return (nuint)(y / divisor);
+                    }
+                }
+            }
             return hi;
         }
 
@@ -39,11 +81,168 @@ namespace ModernMemory
         public static nuint ReciprocalUIntPtr(nuint value, out nuint remainder)
         {
             (var q, var r) = nuint.DivRem(nuint.MaxValue, value);
-            var kk = Unsafe.BitCast<bool, byte>(++r < value) - (nuint)1;
+            var kk = (++r < value ? 1u : 0) - (nuint)1;
             q -= kk;
             r = ~kk & r;
             remainder = r;
             return q;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint MultiplyCheckedConstant(nuint length, nuint multiplier)
+        {
+            if (multiplier < 2)
+            {
+                return multiplier > 0 ? length : 0;
+            }
+            if (((multiplier - 1) & multiplier) == 0)
+            {
+                var res = unchecked(length * multiplier);
+                var a = BitOperations.LeadingZeroCount(multiplier - 1);
+                return length >> a == 0 ? res : ThrowOverflowException();
+            }
+            else if (length <= ReciprocalUIntPtr(multiplier, out _))
+            {
+                return unchecked(length * multiplier);
+            }
+            return ThrowOverflowException();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint BigMulConstant(nuint x, uint y, out nuint low)
+        {
+            if (nuint.MaxValue == uint.MaxValue)
+            {
+                ulong m = x;
+                m *= y;
+                low = (nuint)m;
+                return (nuint)(m >> 32);
+            }
+            else
+            {
+                low = (nuint)BigMulConstant((ulong)x, y, out var high);
+                return (nuint)high;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static ulong BigMulConstant(ulong x, uint y, out ulong low)
+        {
+            if (y < 2)
+            {
+                low = y > 0 ? x : 0;
+                return 0;
+            }
+            if (BitOperations.IsPow2(y))
+            {
+                var a = BitOperations.TrailingZeroCount(y);
+                var hi = x >> -a;
+                var lo = x << a;
+                low = lo;
+                return hi;
+            }
+            else
+            {
+                ulong a0 = (uint)x;
+                var a1 = x >> 32;
+                var z0 = a0 * y;
+                var z1 = a1 * y;
+                var z1a = z1 + (z0 >> 32);
+                var z1b = z1a >> 32;
+                z1a <<= 32;
+                var z2 = z1b;
+                z0 = (uint)z0 | z1a;
+                low = z0;
+                return z2;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint BigMulConstant(nuint x, nuint y, out nuint low)
+        {
+            if (nuint.MaxValue == uint.MaxValue)
+            {
+                ulong m = x;
+                m *= y;
+                low = (nuint)m;
+                return (nuint)(m >> 32);
+            }
+            if ((y & (y - 1)) == 0)
+            {
+                var tzc = BitOperations.TrailingZeroCount(y);
+                var hi = tzc > 0 ? x : 0;
+                hi >>= -tzc;
+                var lo = x << tzc;
+                low = lo;
+                return hi;
+            }
+            return BigMulSlow(x, y, out low);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint BigMulSlow(nuint x, nuint y, out nuint low)
+        {
+            unchecked
+            {
+                var halfLength = BitOperations.LeadingZeroCount(nuint.MinValue) >>> 1;
+                var halfMask = ((nuint)1 << halfLength) - 1;
+                nuint a0 = halfMask & x;
+                var a1 = x >> halfLength;
+                nuint b0 = halfMask & y;
+                var b1 = y >> halfLength;
+                var z1a = a0 * b1;
+                var z1b = a1 * b0;
+                var z0 = a0 * b0;
+                var z1 = z1a + z1b;
+                z1b = z1a > z1 ? halfMask + 1 : 0;
+                var z2 = a1 * b1;
+                z1a = z1 + (z0 >> halfLength);
+                z2 += z1b;
+                z1b = z1a >> halfLength;
+                z1a <<= halfLength;
+                z2 += z1b;
+                z0 = (halfMask & z0) | z1a;
+                low = z0;
+                return z2;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nuint CalculateRationalMultiplyConstant(nuint value, nuint numerator, nuint denominator)
+        {
+            if (numerator == denominator)
+            {
+                return value;
+            }
+            var tz = BitOperations.TrailingZeroCount(numerator | denominator);
+            numerator >>= tz;
+            denominator >>= tz;
+            if (numerator >= denominator && numerator % denominator == 0)
+            {
+                return MultiplyCheckedConstant(value, numerator / denominator);
+            }
+            if (denominator >= numerator && denominator % numerator == 0)
+            {
+                return value / (denominator / numerator);
+            }
+            if (denominator >= numerator)
+            {
+                (var q, var r) = nuint.DivRem(value, denominator);
+                r *= numerator;
+                r /= denominator;
+                q *= numerator;
+                q += r;
+                return q;
+            }
+            var high = BigMulConstant(value, numerator, out var low);
+            return BigDivConstant(high, low, denominator);
+        }
+
+        [DoesNotReturn]
+        internal static nuint ThrowOverflowException()
+        {
+            _ = checked(nuint.MaxValue * nuint.MaxValue);
+            throw new OverflowException();
         }
 
         #region Unrolling Helpers
@@ -116,8 +315,8 @@ namespace ModernMemory
         public static bool IsInUnrolledRange(nuint i, nuint length, nuint unroll, out nuint offsetLength)
         {
             var olen = length - unroll + 1;
-            bool r0 = olen < length;
-            bool r1 = i < olen;
+            var r0 = olen < length;
+            var r1 = i < olen;
             offsetLength = olen;
             return r0 && r1;
         }

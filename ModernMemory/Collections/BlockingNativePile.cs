@@ -13,13 +13,13 @@ using ModernMemory.Buffers;
 using ModernMemory.DataFlow;
 using ModernMemory.Threading;
 
-namespace ModernMemory.Collections
+namespace ModernMemory.Collections.Concurrent
 {
     [CollectionBuilder(typeof(NativeCollectionBuilder), nameof(NativeCollectionBuilder.CreateNativePile))]
-    public sealed class NativePile<T> : INativeList<T>, IDisposable
+    public sealed class BlockingNativePile<T> : INativeList<T>, IDisposable
     {
         private DisposableValueSpinLockSlim mutateLock = new();
-        private nuint count = 0;
+        private volatile nuint count = 0;
         private MemoryResizer<T> resizer;
 
         internal NativeMemory<T> NativeMemory => resizer.NativeMemory;
@@ -36,22 +36,22 @@ namespace ModernMemory.Collections
 
         public T this[nuint index] { get => VisibleValues[index]; set => VisibleValues[index] = value; }
 
-        internal NativePile(MemoryResizer<T> resizer)
+        internal BlockingNativePile(MemoryResizer<T> resizer)
         {
             this.resizer = resizer;
         }
 
-        public NativePile() : this(new MemoryResizer<T>()) { }
+        public BlockingNativePile() : this(new MemoryResizer<T>()) { }
 
-        public NativePile(ReadOnlyNativeSpan<T> values) : this(values.Length)
+        public BlockingNativePile(ReadOnlyNativeSpan<T> values) : this(values.Length)
         {
             Add(values);
         }
 
-        public NativePile(NativeMemoryPool<T> pool) : this(new MemoryResizer<T>(pool)) { }
+        public BlockingNativePile(NativeMemoryPool<T> pool) : this(new MemoryResizer<T>(pool)) { }
 
-        public NativePile(nuint initialSize) : this(new MemoryResizer<T>(initialSize)) { }
-        public NativePile(NativeMemoryPool<T> pool, nuint initialSize) : this(new MemoryResizer<T>(pool, initialSize)) { }
+        public BlockingNativePile(nuint initialSize) : this(new MemoryResizer<T>(initialSize)) { }
+        public BlockingNativePile(NativeMemoryPool<T> pool, nuint initialSize) : this(new MemoryResizer<T>(pool, initialSize)) { }
 
         public void Add(T item)
         {
@@ -64,7 +64,7 @@ namespace ModernMemory.Collections
             }
         }
 
-        public void Add(ReadOnlySpan<T> items) => Add((ReadOnlyNativeSpan<T>)items);
+        public void AddRange(ReadOnlySpan<T> items) => Add((ReadOnlyNativeSpan<T>)items);
 
         public void Add(ReadOnlyNativeSpan<T> items)
         {
@@ -196,13 +196,9 @@ namespace ModernMemory.Collections
             var vv = VisibleValues;
             var v = l.IsHolding && !vv.IsEmpty;
             if (v)
-            {
                 value = vv.Tail;
-            }
             if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
                 vv.Tail = default!;
-            }
             count -= v ? 1u : 0;
             return v;
         }
@@ -214,13 +210,9 @@ namespace ModernMemory.Collections
             var vv = VisibleValues;
             var v = l.IsHolding && !vv.IsEmpty;
             if (v)
-            {
                 value = vv.Tail;
-            }
             if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
                 vv.Tail = default!;
-            }
             count -= v ? 1u : 0;
             return v;
         }
@@ -233,13 +225,9 @@ namespace ModernMemory.Collections
             var vv = VisibleValues;
             var v = !vv.IsEmpty;
             if (v)
-            {
                 value = vv.Tail;
-            }
             if (v && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
                 vv.Tail = default!;
-            }
             count -= v ? 1u : 0;
             return v;
         }
@@ -262,9 +250,7 @@ namespace ModernMemory.Collections
                     } while (res is null && --c2 < vv.Length);
                     count = c;
                     if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                    {
                         vv.Slice(c).Clear();
-                    }
                 }
             }
             value = res;
@@ -277,9 +263,7 @@ namespace ModernMemory.Collections
             var vv = VisibleValues;
             if (vv.Length < count) count = vv.Length;
             if (RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-            {
                 vv.Slice(vv.Length - count).Clear();
-            }
             this.count = vv.Length - count;
         }
 
@@ -296,9 +280,7 @@ namespace ModernMemory.Collections
         private void EnsureCapacityToAddInternal(nuint size)
         {
             if (Writable.Length >= size)
-            {
                 return;
-            }
             ExpandIfNeeded(size);
         }
 
@@ -313,9 +295,7 @@ namespace ModernMemory.Collections
             var m = NativeMemory;
             var c = count;
             if (c == 0)
-            {
                 c = 0;
-            }
             var span = m.Span;
             var v = span.Slice(0, c);
             var newSize = c + addingElements;
@@ -332,12 +312,10 @@ namespace ModernMemory.Collections
             if (!isDisposed)
             {
                 if (disposing || RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                {
                     resizer.NativeMemory.Span.Clear();
-                }
                 resizer.Dispose();
                 resizer = default;
-                acquiredLock.DisposeLock();
+                acquiredLock.ExitAndDispose();
             }
             else
             {
@@ -345,7 +323,7 @@ namespace ModernMemory.Collections
             }
         }
 
-        ~NativePile()
+        ~BlockingNativePile()
         {
             Dispose(disposing: false);
         }
