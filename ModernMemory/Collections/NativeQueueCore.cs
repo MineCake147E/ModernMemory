@@ -29,7 +29,7 @@ namespace ModernMemory.Collections
 
         internal readonly bool IsDisposed => AtomicUtils.GetValue(disposedValue);
 
-        internal readonly NativeMemory<T> NativeMemory => resizer.NativeMemory;
+        internal readonly NativeMemory<T> NativeMemory => resizer.Memory;
 
         internal readonly NativeSpan<T> VisibleValues => NativeMemory.Span.Slice(readHead, writeHead - readHead);
 

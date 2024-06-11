@@ -36,6 +36,6 @@ namespace ModernMemory.Buffers.Pooling
         protected override void Dispose(bool disposing) { }
 
         protected override INativeMemoryOwner<T> CreateOwnerFromArrayPool(int minBufferSize) => MemoryPool<T>.Shared.Rent(minBufferSize).AsNativeMemoryOwner();
-        protected override INativeMemoryOwner<T> CreateOwner(NativeMemoryRegion<T> region) => new NativeMemoryRegionMemoryManager<T>(region);
+        protected override INativeMemoryOwner<T> CreateOwner(NativeMemoryRegion<T> region) => new NativeMemoryRegionOwner<T>(region);
     }
 }

@@ -18,7 +18,7 @@ namespace ModernMemory
     /// </summary>
     /// <typeparam name="T">The type of items in the <see cref="NativeMemory{T}"/>.</typeparam>
     [StructLayout(LayoutKind.Auto)]
-    [SuppressMessage("Major Code Smell", "S1168:Empty arrays and collections should be returned instead of null", Justification = "[] for NativeMemory is too slow")]
+    [SuppressMessage("Major Code Smell", "S1168:Empty arrays and collections should be returned instead of null", Justification = "[] for Memory is too slow")]
     public readonly partial struct NativeMemory<T> : INativeMemory<T, NativeMemory<T>>, IEquatable<NativeMemory<T>>, IMemoryEnumerable<T>
     {
         internal readonly object? underlyingObject;
@@ -97,21 +97,45 @@ namespace ModernMemory
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NativeMemory(T[] array, int start, int length)
+        public NativeMemory(T[]? array, int start, int length)
         {
-            this = new(MemoryType.Array, array, (uint)start, (uint)length);
+            nuint newLength = 0;
+            nuint newStart = 0;
+            if (array is not null)
+            {
+                newLength = (uint)array.Length;
+                newStart = (uint)start;
+                //range checks throws automatically
+                _ = array[newStart];
+                _ = array[checked(newStart + newLength)];
+                newLength -= newStart;
+            }
+            this = new(MemoryType.Array, array, newStart, newLength);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NativeMemory(T[] array, int start)
+        public NativeMemory(T[]? array, int start)
         {
-            this = new(MemoryType.Array, array, (uint)start, (uint)(array.Length - start));
+            nuint newLength = 0;
+            nuint newStart = 0;
+            if (array is not null)
+            {
+                _ = array[start];
+                newLength = (uint)array.Length;
+                newStart = (uint)start;
+            }
+            this = new(MemoryType.Array, array, newStart, newLength - newStart);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public NativeMemory(T[] array)
+        public NativeMemory(T[]? array)
         {
-            this = new(MemoryType.Array, array, 0, (uint)array.Length);
+            nuint newLength = 0;
+            if (array is not null)
+            {
+                newLength = (uint)array.Length;
+            }
+            this = new(MemoryType.Array, array, 0, newLength);
         }
 
         #endregion

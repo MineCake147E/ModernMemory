@@ -57,7 +57,7 @@ namespace ModernMemory.Buffers.Pooling
                 ArgumentOutOfRangeException.ThrowIfGreaterThan(length, ps - rem);
                 if (!PoolingUtils.CheckOccupationByIndex(pos, occ))
                 {
-                    throw new AccessViolationException($"The specified region [{startIndex}, {startIndex + length}) has already been released!");
+                    throw new AccessViolationException($"The specified manager [{startIndex}, {startIndex + length}) has already been released!");
                 }
             }
 

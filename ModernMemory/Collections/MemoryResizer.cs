@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 
 using ModernMemory.Buffers;
 using ModernMemory.Buffers.Pooling;
+using ModernMemory.Collections.Storage;
 
 namespace ModernMemory.Collections
 {
-    public struct MemoryResizer<T> : IDisposable
+    public struct MemoryResizer<T> : IResizableCollectionStorage<T>
     {
 #pragma warning disable IDE0032 // Use auto property
         private NativeMemory<T> nativeMemory;
@@ -59,9 +60,11 @@ namespace ModernMemory.Collections
             initialElements.CopyTo(owner.Span);
         }
 
-        public readonly NativeMemory<T> NativeMemory => nativeMemory;
+        public readonly NativeMemory<T> Memory => nativeMemory;
 
         public readonly bool IsUninitialized => pool is null;
+
+        public NativeSpan<T> Span => nativeMemory.Span;
 
         public static void LazyInit(ref MemoryResizer<T> resizer)
         {

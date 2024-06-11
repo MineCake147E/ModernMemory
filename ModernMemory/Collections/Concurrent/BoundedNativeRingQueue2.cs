@@ -2,6 +2,7 @@
 using System.Buffers;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
@@ -19,18 +20,22 @@ using ModernMemory.Threading;
 
 namespace ModernMemory.Collections.Concurrent
 {
+    /// <summary>
+    /// A lock-free single-reader single-writer thread-safe queue.
+    /// </summary>
+    /// <typeparam name="T">The type of items.</typeparam>
+    [CollectionBuilder(typeof(NativeCollectionBuilder), nameof(NativeCollectionBuilder.CreateBoundedNativeRingQueue2))]
     [StructLayout(LayoutKind.Sequential, Pack = 64)]
-    public sealed partial class BoundedNativeRingQueue<T, TStorage> : IDisposable, IQueue<T>, IEnumerable<T>
-        where TStorage : ICollectionStorage<T>
+    public sealed partial class BoundedNativeRingQueue2<T> : IDisposable, IQueue<T>, IEnumerable<T>
     {
-        private BoundedNativeRingQueueCore<T, TStorage> core;
+        private BoundedNativeRingQueueCore<T, MemoryOwnerContainerStorage<T>> core;
 
-        public BoundedNativeRingQueue(TStorage storage)
+        public BoundedNativeRingQueue2(MemoryOwnerContainerStorage<T> storage)
         {
             core = new(storage);
         }
 
-        public BoundedNativeRingQueue(TStorage storage, ReadOnlyNativeSpan<T> initialValues)
+        public BoundedNativeRingQueue2(MemoryOwnerContainerStorage<T> storage, ReadOnlyNativeSpan<T> initialValues)
         {
             core = new(storage, initialValues);
         }
@@ -91,7 +96,7 @@ namespace ModernMemory.Collections.Concurrent
         public nuint DiscardHeadAtMost(nuint count) => core.DiscardHeadAtMost(count);
     }
 
-    public sealed partial class BoundedNativeRingQueue<T, TStorage> : IDisposable
+    public sealed partial class BoundedNativeRingQueue2<T> : IDisposable
     {
         private void Dispose(bool disposing)
         {
@@ -106,10 +111,4 @@ namespace ModernMemory.Collections.Concurrent
         }
     }
 
-    public static partial class BoundedNativeRingQueue
-    {
-        public static BoundedNativeRingQueue<T, ArrayStorage<T>> Create<T>(int size) => new(new(size));
-        public static BoundedNativeRingQueue<T, ArrayStorage<T>> Create<T>(Span<T> initialValues) => new(new(initialValues.Length), initialValues);
-        public static BoundedNativeRingQueue<T, ArrayStorage<T>> Create<T>(Span<T> initialValues, int extraSpace) => new(new(checked(initialValues.Length + extraSpace)), initialValues);
-    }
 }

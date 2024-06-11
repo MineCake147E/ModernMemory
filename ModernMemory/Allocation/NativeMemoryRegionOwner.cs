@@ -13,32 +13,41 @@ namespace ModernMemory.Allocation
     public sealed class NativeMemoryRegionOwner<T> : INativeMemoryOwner<T>
     {
         NativeMemoryRegion<T> region;
-        private uint disposedValue;
+        MemoryRegionMemoryManager<T>? manager;
+        private uint disposedValue = AtomicUtils.GetValue(false);
 
-        private sealed class MemoryManager : NativeMemoryManager<T>
+        public NativeMemoryRegionOwner(nuint size, byte alignmentExponent = 0, bool clear = false)
         {
-            public override NativeSpan<T> CreateNativeSpan(nuint start, nuint length) => throw new NotImplementedException();
-            public override ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length) => throw new NotImplementedException();
-            public override ref T GetReferenceAt(nuint start = 0U) => throw new NotImplementedException();
-            public override NativeSpan<T> GetNativeSpan() => throw new NotImplementedException();
-            public override ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start) => throw new NotImplementedException();
-            public override MemoryHandle Pin(nuint elementIndex) => throw new NotImplementedException();
-            public override void Unpin() => throw new NotImplementedException();
-            protected override void Dispose(bool disposing) => throw new NotImplementedException();
+            var nr = region = new(size, alignmentExponent, clear);
+            manager = new(nr);
         }
 
-        public NativeMemory<T> NativeMemory { get; }
-        public Memory<T> Memory { get; }
+        internal NativeMemoryRegionOwner(NativeMemoryRegion<T> region)
+        {
+            this.region = region;
+            manager = new(region);
+        }
+
+        internal MemoryRegion<T> Region => new(region);
+
+        public NativeSpan<T> Span => region.NativeSpan;
+
+        public NativeMemory<T> NativeMemory => (manager?.NativeMemory) ?? default;
+        public Memory<T> Memory => manager?.Memory ?? default;
 
         private void Dispose(bool disposing)
         {
             if (!AtomicUtils.Exchange(ref disposedValue, true))
             {
+                manager?.Destroy();
+                manager = null;
                 if (disposing || RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 {
                     region.NativeSpan.Clear();
                 }
                 region.Dispose();
+                region = default;
+
             }
         }
 

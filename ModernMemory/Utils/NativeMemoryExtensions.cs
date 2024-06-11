@@ -135,7 +135,7 @@ namespace ModernMemory
         /// <typeparam name="T">The type of the <paramref name="array"/>.</typeparam>
         /// <param name="array">The target array.</param>
         /// <returns>The <see cref="NativeMemory{T}"/> representation of the memory.</returns>
-        public static NativeMemory<T> AsNativeMemory<T>(this T[] array) => new(array);
+        public static NativeMemory<T> AsNativeMemory<T>(this T[]? array) => new(array);
 
         #endregion
 

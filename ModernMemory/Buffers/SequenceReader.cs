@@ -57,7 +57,7 @@ namespace ModernMemory.Buffers
                 else
                 {
                     MemoryResizer<T>.LazyInit(ref resizer, s2, res);
-                    var span = resizer.NativeMemory.Span;
+                    var span = resizer.Memory.Span;
                     var dw = span.Slice(remained).AsDataWriter();
                     var pos = cp;
                     while (!dw.IsCompleted && sequence.TryGet(pos, out var m, out var np))

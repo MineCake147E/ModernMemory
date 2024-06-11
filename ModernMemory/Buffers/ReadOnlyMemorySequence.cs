@@ -44,7 +44,7 @@ namespace ModernMemory.Buffers
         {
             Unsafe.SkipInit(out this);
             memory.Resize(segments.Length);
-            var array = memory.NativeMemory;
+            var array = memory.Memory;
             var span = array.Span;
             ConstructSegments(0, segments, span);
             this = new(array);

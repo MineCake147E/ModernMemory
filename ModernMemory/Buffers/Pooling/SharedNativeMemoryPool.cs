@@ -44,7 +44,7 @@ namespace ModernMemory.Buffers.Pooling
             var shared = MemoryPool<T>.Shared;
             return new(shared.MaxBufferSize >= 0 && minBufferSize <= (nuint)shared.MaxBufferSize
                 ? shared.Rent((int)minBufferSize).AsNativeMemoryOwner()
-                : new NativeMemoryRegionMemoryManager<T>(new(minBufferSize)));
+                : new NativeMemoryRegionOwner<T>(minBufferSize));
         }
 
         public override MemoryOwnerContainer<T> RentWithDefaultSize() => new(MemoryPool<T>.Shared.Rent().AsNativeMemoryOwner());

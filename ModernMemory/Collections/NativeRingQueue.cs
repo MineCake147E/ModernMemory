@@ -69,7 +69,7 @@ namespace ModernMemory.Collections
 
         public void Add(ReadOnlyNativeSpan<T> items)
         {
-            var mem = resizer.NativeMemory;
+            var mem = resizer.Memory;
             var rG = Volatile.Read(ref readableGuard);
             if (rG == nuint.MaxValue) rG = 0;
             var wH = rG + items.Length;

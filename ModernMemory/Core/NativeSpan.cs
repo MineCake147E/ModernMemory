@@ -110,13 +110,15 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public NativeSpan(T[]? array)
         {
-            if (array is null)
-            {
-                this = default;
-                return;
-            }
             CheckArrayTypeMismatch(array);
-            this = new(ref MemoryMarshal.GetArrayDataReference(array), checked((nuint)array.LongLength));
+            ref var newHead = ref Unsafe.NullRef<T>();
+            nuint newLength = 0;
+            if (array is not null)
+            {
+                newHead = ref MemoryMarshal.GetArrayDataReference(array)!;
+                newLength = checked((nuint)array.LongLength);
+            }
+            this = new(ref newHead, newLength);
         }
 
         /// <summary>
@@ -142,12 +144,12 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public NativeSpan(T[]? array, nuint start)
         {
+            CheckArrayTypeMismatch(array);
             if (array is null)
             {
                 this = default;
                 return;
             }
-            CheckArrayTypeMismatch(array);
             //range checks throws automatically
             _ = array[start];
             this = new(ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), start), (nuint)array.Length - start);
@@ -165,16 +167,17 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public NativeSpan(T[]? array, nuint start, nuint length)
         {
-            if (array is null)
-            {
-                this = default;
-                return;
-            }
             CheckArrayTypeMismatch(array);
-            //range checks throws automatically
-            _ = array[start];
-            _ = array[start + length];
-            this = new(ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), start), length);
+            ref var newHead = ref Unsafe.NullRef<T>();
+            var newLength = length;
+            if (array is not null)
+            {
+                //range checks throws automatically
+                _ = array[start];
+                _ = array[start + length];
+                newHead = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), start)!;
+            }
+            this = new(ref newHead, newLength);
         }
 
         /// <summary>

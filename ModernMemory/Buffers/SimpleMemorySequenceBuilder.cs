@@ -63,7 +63,7 @@ namespace ModernMemory.Buffers
                     buildBuffer.Resize(span);
                     appendQueue.DiscardHead(span.Length);
                 }
-                var memories = buildBuffer.NativeMemory.Span.SliceWhile(size);
+                var memories = buildBuffer.Memory.Span.SliceWhile(size);
                 readableSegments.DiscardHead(slicedCacheSegments);
                 slicedCacheSegments = 0;
                 var dst = readableSegments.GetNativeSpan(memories.Length);

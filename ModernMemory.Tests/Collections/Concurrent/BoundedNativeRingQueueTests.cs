@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 using ModernMemory.Collections;
 using ModernMemory.Collections.Concurrent;
+using ModernMemory.Collections.Storage;
 using ModernMemory.DataFlow;
 using ModernMemory.Threading;
 
@@ -19,7 +20,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void AddSingleAddsCorrectly()
         {
-            using var q = new BoundedNativeRingQueue<int>(2);
+            using var q = BoundedNativeRingQueue.Create<int>(2);
             q.TryAdd(1);
             Assert.That(q.Peek(), Is.EqualTo(1));
         }
@@ -28,7 +29,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         public void AddMultipleAddsCorrectly()
         {
 #pragma warning disable IDE0028 // Simplify collection initialization
-            using var nq = new BoundedNativeRingQueue<int>(64);
+            using var nq = BoundedNativeRingQueue.Create<int>(64);
             nq.AddAtMost([.. Enumerable.Range(0, 32)]);
 #pragma warning restore IDE0028 // Simplify collection initialization
             Assert.That(nq, Is.EqualTo(Enumerable.Range(0, 32)));
@@ -37,21 +38,21 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void CollectionInitializerSingleInitializesCorrectly()
         {
-            using BoundedNativeRingQueue<int> nq = [1];
+            using var nq = BoundedNativeRingQueue.Create([1]);
             Assert.That(nq.Peek(), Is.EqualTo(1));
         }
 
         [Test]
         public void CollectionInitializerMultipleInitializesCorrectly()
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, 32)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, 32)]);
             Assert.That(nq, Is.EqualTo(Enumerable.Range(0, 32)));
         }
 
         [Test]
         public void ClearClearsCorrectly() => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, 32)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, 32)]);
             nq.Clear();
             Assert.That(nq.Count, Is.EqualTo(nuint.MinValue));
             Assert.That(nq, Is.Empty);
@@ -62,7 +63,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void DequeueSingleDequeuesCorrectly() => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, 32)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, 32)]);
             _ = nq.Dequeue();
             Assert.That(nq.Count, Is.EqualTo((nuint)31));
             Assert.That(nq, Is.EqualTo(Enumerable.Range(1, 31)));
@@ -71,14 +72,14 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void DequeueSingleThrowsCorrectlyIfEmpty()
         {
-            using BoundedNativeRingQueue<int> nq = [];
+            using var nq = BoundedNativeRingQueue.Create<int>([]);
             Assert.Throws<InvalidOperationException>(() => _ = nq.Dequeue());
         }
 
         [Test]
         public void TryDequeueSingleDequeuesCorrectly() => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, 32)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, 32)]);
             var res = nq.TryDequeue(out var item);
             Assert.That(item, Is.Zero);
             Assert.That(res, Is.True);
@@ -89,7 +90,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void TryDequeueSingleDoesNotThrow() => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [];
+            using var nq = BoundedNativeRingQueue.Create<int>([]);
             var item = -1;
             var res = false;
             Assert.DoesNotThrow(() => res = nq.TryDequeue(out item));
@@ -101,7 +102,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32), TestCase(1048576)]
         public void DequeueAllDequeuesCorrectly(int size) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>();
             nq.DequeueAll(ref abw);
             Assert.That(nq.Count, Is.EqualTo((nuint)0));
@@ -112,7 +113,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [Test]
         public void DequeueAllDoesNotThrowIfEmpty()
         {
-            using BoundedNativeRingQueue<int> nq = [];
+            using var nq = BoundedNativeRingQueue.Create<int>([]);
             var abw = new ArrayBufferWriter<int>();
             Assert.DoesNotThrow(() => nq.DequeueAll(ref abw));
         }
@@ -122,7 +123,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288)]
         public void DequeueRangeDataWriterConstrainedBufferWriterDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>(dequeueCount);
             var dw = DataWriter.CreateFrom(ref abw, (nuint)dequeueCount);
             try
@@ -142,7 +143,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeDataWriterConstrainedBufferWriterThrowsCorrectlyInsufficientItems(int size, int dequeueCount)
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>(dequeueCount);
             Assert.Throws<InvalidOperationException>(() =>
             {
@@ -161,7 +162,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32), TestCase(1048576)]
         public void DequeueRangeDataWriterUnconstrainedBufferWriterDequeuesCorrectly(int size) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>();
             Assert.DoesNotThrow(() =>
             {
@@ -184,7 +185,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288)]
         public void DequeueRangeDataWriterNativeSpanDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             var dw = DataWriter.CreateFrom(arr);
             try
@@ -204,7 +205,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeDataWriterNativeSpanThrowsCorrectlyInsufficientItems(int size, int dequeueCount)
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             Assert.Throws<InvalidOperationException>(() =>
             {
@@ -225,7 +226,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288)]
         public void DequeueRangeExactNativeSpanDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             nq.DequeueRangeExact(arr);
             Assert.That(nq.Count, Is.EqualTo((nuint)(size - dequeueCount)));
@@ -236,7 +237,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeExactNativeSpanThrowsCorrectlyInsufficientItems(int size, int dequeueCount)
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             Assert.Throws<InvalidOperationException>(() => nq.DequeueRangeExact(arr));
         }
@@ -246,7 +247,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288), TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeAtMostDataWriterConstrainedBufferWriterDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>(dequeueCount);
             var count = nuint.MaxValue;
             Assert.DoesNotThrow(() =>
@@ -272,7 +273,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32), TestCase(1048576)]
         public void DequeueRangeAtMostDataWriterUnconstrainedBufferWriterDequeuesCorrectly(int size) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var abw = new ArrayBufferWriter<int>();
             Assert.DoesNotThrow(() =>
             {
@@ -295,7 +296,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288), TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeAtMostDataWriterNativeSpanDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             var count = nuint.MaxValue;
             Assert.DoesNotThrow(() =>
@@ -321,7 +322,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(32, 16), TestCase(1048576, 524288), TestCase(0, 1), TestCase(16, 32), TestCase(524288, 1048576)]
         public void DequeueRangeAtMostNativeSpanDequeuesCorrectly(int size, int dequeueCount) => Assert.Multiple(() =>
         {
-            using BoundedNativeRingQueue<int> nq = [.. Enumerable.Range(0, size)];
+            using var nq = BoundedNativeRingQueue.Create([.. Enumerable.Range(0, size)]);
             var arr = new int[dequeueCount];
             var count = nuint.MaxValue;
             Assert.DoesNotThrow(() => count = nq.DequeueRangeAtMost(arr.AsNativeSpan()));
@@ -343,7 +344,7 @@ namespace ModernMemory.Tests.Collections.Concurrent
         [TestCase(1 << 24, 16)]
         public void AddAndDequeueSingleConcurrentlyAddsAndDequeuesCorrectly(int count, int capacity)
         {
-            using var bnq = new BoundedNativeRingQueue<int>((nuint)capacity);
+            using var bnq = BoundedNativeRingQueue.Create<int>(capacity);
             var nq = new NativeQueue<int>((nuint)count);
             using var e = new SemaphoreSlim(0, 1);
             using var mre = new ManualResetEventSlim(false);

@@ -22,7 +22,7 @@ namespace ModernMemory.Collections.Concurrent
         private volatile nuint count = 0;
         private MemoryResizer<T> resizer;
 
-        internal NativeMemory<T> NativeMemory => resizer.NativeMemory;
+        internal NativeMemory<T> NativeMemory => resizer.Memory;
 
         internal NativeSpan<T> VisibleValues => NativeMemory.Span.Slice(0, count);
 
@@ -312,7 +312,7 @@ namespace ModernMemory.Collections.Concurrent
             if (!isDisposed)
             {
                 if (disposing || RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                    resizer.NativeMemory.Span.Clear();
+                    resizer.Memory.Span.Clear();
                 resizer.Dispose();
                 resizer = default;
                 acquiredLock.ExitAndDispose();

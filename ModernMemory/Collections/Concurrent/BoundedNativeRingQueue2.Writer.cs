@@ -5,17 +5,19 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Collections.Storage;
+
 namespace ModernMemory.Collections.Concurrent
 {
-    public sealed partial class BoundedNativeRingQueue<T, TStorage>
+    public sealed partial class BoundedNativeRingQueue2<T>
     {
         public readonly ref struct Writer
         {
-            readonly ref BoundedNativeRingQueueCore<T, TStorage> queue;
+            readonly ref BoundedNativeRingQueueCore<T, MemoryOwnerContainerStorage<T>> queue;
             readonly NativeSpan<T> span;
 
             [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-            internal Writer(ref BoundedNativeRingQueueCore<T, TStorage> queue) : this()
+            internal Writer(ref BoundedNativeRingQueueCore<T, MemoryOwnerContainerStorage<T>> queue) : this()
             {
                 this.queue = ref queue;
                 span = queue.Span;

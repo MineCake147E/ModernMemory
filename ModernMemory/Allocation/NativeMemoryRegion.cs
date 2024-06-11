@@ -27,6 +27,19 @@ namespace ModernMemory.Allocation
             get => length;
         }
 
+        public ref T this[nuint index]
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+            get
+            {
+                if (index >= length)
+                {
+                    ThrowHelper.ThrowIndexOutOfRangeException();
+                }
+                return ref head[index];
+            }
+        }
+
         /// <summary>
         /// Gets the current alignment in bytes.
         /// </summary>
@@ -40,7 +53,7 @@ namespace ModernMemory.Allocation
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> object over the entirety of the current <see cref="NativeMemoryRegion{T}"/>.
         /// </summary>
-        public NativeSpan<T> NativeSpan => new(ref *head, Length);
+        public readonly NativeSpan<T> NativeSpan => new(ref Unsafe.AsRef<T>(head), Length);
 
         /// <summary>
         /// Returns a internalValue that indicates whether the current <see cref="NativeMemoryRegion{T}"/> is empty.
@@ -94,6 +107,8 @@ namespace ModernMemory.Allocation
                 }
             }
         }
+
+        public static implicit operator MemoryRegion<T>(NativeMemoryRegion<T> region) => new(region);
     }
 #pragma warning restore CS8500 // This takes the address of, gets the size of, or declares a pointer to a managed type
 }

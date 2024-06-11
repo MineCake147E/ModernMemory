@@ -8,15 +8,16 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using ModernMemory.Collections.Concurrent;
+using ModernMemory.Collections.Storage;
 using ModernMemory.Threading;
 
 namespace ModernMemory.Benchmarks.Collections.Concurrent
 {
     [SimpleJob(runtimeMoniker: RuntimeMoniker.HostProcess)]
     [DisassemblyDiagnoser(maxDepth: int.MaxValue)]
-    public class BoundedNativeRingQueueBenchmarks
+    public class BoundedNativeRingQueue2Benchmarks
     {
-        private BoundedNativeRingQueue<int>? queue;
+        private BoundedNativeRingQueue2<int, ArrayStorage<int>>? queue;
         private Task? clearTask;
         private CancellationTokenSource? tokenSource;
 
@@ -28,7 +29,7 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
         [GlobalSetup]
         public void Setup()
         {
-            queue = new((nuint)Capacity);
+            queue = new(new(Capacity));
             tokenSource = new();
             clearTask = Task.Run(async () =>
             {

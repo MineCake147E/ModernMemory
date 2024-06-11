@@ -21,8 +21,7 @@ namespace ModernMemory.Benchmarks
         ReadOnlyNativeMemory<char> nativeMemory;
         string? str;
         char[]? array;
-        MemoryManager<char>? memoryManager;
-        NativeMemoryManager<char>? nativeMemoryManager;
+        NativeMemoryRegionOwner<char>? owner;
 
         //[ParamsAllValues]
         [Params(MemoryType.NativeMemoryManager, MemoryType.MemoryManager)]
@@ -41,16 +40,12 @@ namespace ModernMemory.Benchmarks
                     array = str.ToCharArray();
                     memory = array.AsMemory();
                     break;
-                case MemoryType.MemoryManager:
-                    memoryManager = new NativeMemoryRegionMemoryManager<char>(new((uint)str.Length));
-                    memory = memoryManager.Memory;
-                    break;
                 default:
-                    nativeMemoryManager = new NativeMemoryRegionMemoryManager<char>(new((uint)str.Length));
-                    memory = nativeMemoryManager.Memory;
+                    owner = new((uint)str.Length);
+                    memory = owner.Memory;
                     break;
             }
-            nativeMemory = nativeMemoryManager is not null ? nativeMemoryManager.NativeMemory : memory;
+            nativeMemory = owner is not null && Type == MemoryType.NativeMemoryManager ? owner.NativeMemory : memory;
         }
 
         [Benchmark]
@@ -65,8 +60,7 @@ namespace ModernMemory.Benchmarks
             memory = default;
             nativeMemory = default;
             array = default;
-            (memoryManager as IDisposable)?.Dispose();
-            (nativeMemoryManager as IDisposable)?.Dispose();
+            owner?.Dispose();
         }
     }
 }
