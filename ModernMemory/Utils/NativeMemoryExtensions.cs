@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,6 +19,21 @@ namespace ModernMemory
     {
         #region AsNativeSpan
         #region Span
+
+        /// <summary>
+        /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="span"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the span.</typeparam>
+        /// <param name="span">The <see cref="Span{T}"/> to convert.</param>
+        /// <returns>The <see cref="NativeSpan{T}"/> representation of the <paramref name="span"/>.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static NativeSpan<T> AsNativeSpanUnsafe<T>(this Span<T> span)
+        {
+            ref var r = ref MemoryMarshal.GetReference(span);
+            nuint length = (uint)span.Length;
+            return new(ref r, length);
+        }
+
         /// <summary>
         /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="span"/>.
         /// </summary>
@@ -65,30 +81,7 @@ namespace ModernMemory
         /// <typeparam name="T">The type of the memory segment.</typeparam>
         /// <param name="segment">The target memory segment.</param>
         /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
-        public static NativeSpan<T> AsNativeSpan<T>(this ArraySegment<T> segment) => new(segment);
-
-        #endregion
-
-        #region NativeArray
-        /// <summary>
-        /// Creates a new <see cref="NativeSpan{T}"/> over the target <paramref name="array"/>.
-        /// </summary>
-        /// <typeparam name="T">The type of the memory.</typeparam>
-        /// <param name="array">The memory to convert.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
-        public static NativeSpan<T> AsNativeSpan<T>(this NativeArray<T> array) where T : unmanaged
-            => array.NativeSpan;
-
-        /// <summary>
-        /// Creates a new <see cref="NativeSpan{T}"/> over the portion of the target <paramref name="array"/> beginning at a specified position for a specified length.
-        /// </summary>
-        /// <typeparam name="T">The type of the memory.</typeparam>
-        /// <param name="array">The target memory.</param>
-        /// <param name="start">The index at which to begin the span.</param>
-        /// <param name="length">The number of items in the span.</param>
-        /// <returns>The <see cref="NativeSpan{T}"/> representation of the memory.</returns>
-        public static NativeSpan<T> AsNativeSpan<T>(this NativeArray<T> array, nuint start, nuint length) where T : unmanaged
-            => array.NativeSpan.Slice(start, length);
+        public static NativeSpan<T> AsNativeSpan<T>(this ArraySegment<T> segment) => new(segment.AsSpan());
         #endregion
 
         #region String
@@ -128,16 +121,21 @@ namespace ModernMemory
         public static ReadOnlyNativeMemory<char> AsNativeMemory(this string text, Range range) => new(text.AsMemory(range));
         #endregion
 
-        #region NativeArray
-        public static NativeMemory<T> AsNativeMemory<T>(this NativeArray<T> array)
-            => new(array.GetNativeSpanFactory(), 0, array.Length);
+        /// <summary>
+        /// Creates a new <see cref="NativeMemory{T}"/> over the target <paramref name="segment"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the memory segment.</typeparam>
+        /// <param name="segment">The target memory segment.</param>
+        /// <returns>The <see cref="NativeMemory{T}"/> representation of the memory.</returns>
+        public static NativeMemory<T> AsNativeMemory<T>(this ArraySegment<T> segment) => new(segment);
 
-        public static NativeMemory<T> AsNativeMemory<T>(this NativeArray<T> array, nuint start)
-            => new(array.GetNativeSpanFactory(), start, array.Length - start);
-
-        public static NativeMemory<T> AsNativeMemory<T>(this NativeArray<T> array, nuint start, nuint length)
-            => new(array.GetNativeSpanFactory(), start, length);
-        #endregion
+        /// <summary>
+        /// Creates a new <see cref="NativeMemory{T}"/> over the target <paramref name="array"/>.
+        /// </summary>
+        /// <typeparam name="T">The type of the <paramref name="array"/>.</typeparam>
+        /// <param name="array">The target array.</param>
+        /// <returns>The <see cref="NativeMemory{T}"/> representation of the memory.</returns>
+        public static NativeMemory<T> AsNativeMemory<T>(this T[] array) => new(array);
 
         #endregion
 

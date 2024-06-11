@@ -20,8 +20,10 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
         private Task? clearTask;
         private CancellationTokenSource? tokenSource;
 
-        [Params(255, 65535)]
+        [Params((1 << 17) - 1, (1 << 20) - 1)]
         public int Capacity { get; set; }
+
+        private const int OperationsPerInvoke = 1 << 16;
 
         [GlobalSetup]
         public void Setup()
@@ -33,15 +35,27 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
                 await Task.Yield();
                 while (!tokenSource.IsCancellationRequested)
                 {
-                    queue?.Clear();
+                    for (int i = 0; i < 1024; i++)
+                    {
+                        queue?.Clear();
+                    }
                 }
             });
         }
 
-        [Benchmark]
-        public void TryAddSingleAndClear()
+        [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
+        public void TryAddUntilSuccessSingle()
         {
-            queue?.TryAdd(7);
+            var q = queue;
+            ArgumentNullException.ThrowIfNull(q);
+            var w = q.GetWriter();
+            for (int i = 0; i < OperationsPerInvoke; i++)
+            {
+                while (!w.TryAdd(i))
+                {
+                    // try again
+                }
+            }
         }
 
         [GlobalCleanup]

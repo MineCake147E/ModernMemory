@@ -6,11 +6,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.13.12" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\ModernMemory.Benchmarks\ModernMemory.Benchmarks.csproj" />
     <ProjectReference Include="..\ModernMemory\ModernMemory.csproj" />

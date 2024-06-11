@@ -4,9 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ModernMemory
+namespace ModernMemory.Collections.Core
 {
-    public static class NativeArrayUtils
+    public interface ICollectionBackend<T>
     {
+        NativeSpan<T> Span { get; }
+
     }
 }

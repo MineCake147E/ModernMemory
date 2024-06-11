@@ -15,6 +15,7 @@ namespace ModernMemory.Allocation
 
         public override NativeSpan<T> CreateNativeSpan(nuint start, nuint length) => region.NativeSpan.Slice(start, length);
         public override ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length) => region.NativeSpan.Slice(start, length);
+        public override ref T GetReferenceAt(nuint start = 0) => ref region.NativeSpan[start];
         public override NativeSpan<T> GetNativeSpan() => region.NativeSpan;
         public override ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start) => new NativeMemorySlicedMemoryManager<T>(this, start).Memory;
         public override Span<T> GetSpan() => region.NativeSpan.GetHeadSpan();

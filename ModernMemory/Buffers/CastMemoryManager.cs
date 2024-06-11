@@ -22,6 +22,7 @@ namespace ModernMemory.Buffers
             => NativeMemoryUtils.CastUnsafe<byte, T>(memoryManager.CreateNativeSpan(start * (nuint)Unsafe.SizeOf<T>(), length * (nuint)Unsafe.SizeOf<T>()));
         public override ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length)
             => NativeMemoryUtils.CastUnsafe<byte, T>(memoryManager.CreateReadOnlyNativeSpan(start * (nuint)Unsafe.SizeOf<T>(), length * (nuint)Unsafe.SizeOf<T>()));
+        public override ref T GetReferenceAt(nuint start = 0U) => ref Unsafe.As<byte, T>(ref memoryManager.GetReferenceAt(start * (nuint)Unsafe.SizeOf<T>()));
         public override NativeSpan<T> GetNativeSpan() => NativeMemoryUtils.CastUnsafe<byte, T>(memoryManager.GetNativeSpan());
         public override ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start) => throw new NotSupportedException();
         public override MemoryHandle Pin(nuint elementIndex) => memoryManager.Pin(elementIndex * (nuint)Unsafe.SizeOf<T>());

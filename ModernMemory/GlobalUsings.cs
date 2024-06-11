@@ -3,3 +3,4 @@
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("ModernMemory.Tests")]
+[assembly: InternalsVisibleTo("ModernMemory.Benchmarks")]

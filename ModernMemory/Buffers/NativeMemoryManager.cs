@@ -16,6 +16,8 @@ namespace ModernMemory.Buffers
 
         public override Span<T> GetSpan() => GetNativeSpan().GetHeadSpan();
 
+        public virtual ref T GetReferenceAt(nuint start = 0) => ref GetNativeSpan()[start];
+
         public abstract NativeSpan<T> CreateNativeSpan(nuint start, nuint length);
         public abstract ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length);
         public abstract NativeSpan<T> GetNativeSpan();

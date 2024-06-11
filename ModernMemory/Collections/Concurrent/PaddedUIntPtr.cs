@@ -10,13 +10,13 @@ using System.Threading.Tasks;
 
 namespace ModernMemory.Collections.Concurrent
 {
-    [StructLayout(LayoutKind.Explicit, Pack =64)]
+    [StructLayout(LayoutKind.Sequential, Pack =64)]
     internal readonly struct PaddedUIntPtr
     {
-        [FieldOffset(0)]
         internal readonly nuint content;
-        [FieldOffset(0)]
+#pragma warning disable S4487 // Unread "private" fields should be removed
         private readonly Vector512<byte> dummy;
+#pragma warning restore S4487 // Unread "private" fields should be removed
 
         [SkipLocalsInit]
         public PaddedUIntPtr(nuint value)

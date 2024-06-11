@@ -208,7 +208,7 @@ namespace ModernMemory
             [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
             get
             {
-                if (index >= Length)
+                if (index >= length)
                 {
                     ThrowHelper.ThrowIndexOutOfRangeException();
                 }
@@ -479,7 +479,7 @@ namespace ModernMemory
         /// <returns>
         /// The result of the conversion.
         /// </returns>
-        public static implicit operator NativeSpan<T>(ArraySegment<T> value) => new(value);
+        public static implicit operator NativeSpan<T>(ArraySegment<T> value) => new(value.AsSpan());
 
         public readonly T[] ToArray() => FitsInSpan ? GetHeadSpan().ToArray()
                 : throw new InvalidOperationException("The NativeSpan is larger than the limit that Array can hold!");
@@ -489,23 +489,7 @@ namespace ModernMemory
             : $"ModernMemory.NativeSpan<{typeof(T).Name}>[{Length}]";
         #endregion
 
-        public ref struct Enumerator
-        {
-            private readonly NativeSpan<T> span;
-            private nuint index;
-
-            internal Enumerator(NativeSpan<T> span)
-            {
-                this.span = span;
-                index = ~(nuint)0;
-            }
-            public readonly T Current => span[index];
-
-            public bool MoveNext() => ++index < span.Length;
-            public void Reset() => index = 0;
-        }
-
-        public Enumerator GetEnumerator() => new(this);
+        public ReadOnlyNativeSpan<T>.Enumerator GetEnumerator() => new(this);
 
         private string GetDebuggerDisplay() => ToString();
     }

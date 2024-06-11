@@ -85,6 +85,12 @@ namespace ModernMemory.Tests
         public static T Slice<T>(this T sliceable, SliceData slice) where T : ISliceable<T, nuint>
             => !slice.SliceByLength ? sliceable.Slice(slice.Start) : sliceable.Slice(slice.Start, slice.Length);
 
+        public static NativeSpan<T> Slice<T>(this NativeSpan<T> sliceable, SliceData slice)
+            => !slice.SliceByLength ? sliceable.Slice(slice.Start) : sliceable.Slice(slice.Start, slice.Length);
+
+        public static ReadOnlyNativeSpan<T> Slice<T>(this ReadOnlyNativeSpan<T> sliceable, SliceData slice)
+            => !slice.SliceByLength ? sliceable.Slice(slice.Start) : sliceable.Slice(slice.Start, slice.Length);
+
         public static ReadOnlySequenceSlim<T> Slice<T>(this ReadOnlySequenceSlim<T> sliceable, SliceData slice)
             => !slice.SliceByLength ? sliceable.Slice(slice.Start) : sliceable.Slice(slice.Start, slice.Length);
     }

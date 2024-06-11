@@ -19,6 +19,7 @@ namespace ModernMemory.Allocation
         {
             public override NativeSpan<T> CreateNativeSpan(nuint start, nuint length) => throw new NotImplementedException();
             public override ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length) => throw new NotImplementedException();
+            public override ref T GetReferenceAt(nuint start = 0U) => throw new NotImplementedException();
             public override NativeSpan<T> GetNativeSpan() => throw new NotImplementedException();
             public override ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start) => throw new NotImplementedException();
             public override MemoryHandle Pin(nuint elementIndex) => throw new NotImplementedException();

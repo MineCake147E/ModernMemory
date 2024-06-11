@@ -29,18 +29,19 @@ namespace ModernMemory.Collections.Concurrent
     [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public sealed partial class BoundedNativeRingQueue<T> : IDisposable, IQueue<T>, IEnumerable<T>
     {
-        private nuint readCursorLowerBound;
+#pragma warning disable S1144 // Unused private types or members should be removed (needed for padding to prevent false sharing)
+        private readonly Vector512<byte> padding0;
+#pragma warning restore S1144 // Unused private types or members should be removed
+        private PaddedUIntPtr readCursorLowerBound;
         private PaddedUIntPtr writeCursorCache;
         private PaddedUIntPtr readCursor;
         private MemoryOwnerContainer<T> owner;
-#pragma warning disable IDE0032 // Use auto property
         private NativeMemory<T> memory;
-#pragma warning restore IDE0032 // Use auto property
         private uint disposedValue;
 #pragma warning disable S1144 // Unused private types or members should be removed (needed for padding to prevent false sharing)
-        private readonly Vector512<byte> padding;
+        private readonly Vector512<byte> padding1;
 #pragma warning restore S1144 // Unused private types or members should be removed
-        private nuint writeCursorLowerBound;
+        private PaddedUIntPtr writeCursorLowerBound;
         private PaddedUIntPtr writeCursor;
         private nuint readCursorCache;
 
@@ -78,7 +79,7 @@ namespace ModernMemory.Collections.Concurrent
             get
             {
                 var rc = readCursor.Load();
-                var rcl = readCursorLowerBound;
+                var rcl = readCursorLowerBound.Load();
                 var wc = writeCursorCache.Load();
                 var m = memory;
                 var pos = rc - rcl;
@@ -96,11 +97,13 @@ namespace ModernMemory.Collections.Concurrent
             }
         }
 
+        public Writer GetWriter() => new(this);
+
         public void Clear()
         {
             var wc = writeCursor.VolatileLoad();
             var rc = readCursor.VolatileLoad();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             AdvanceReadCursor(rc, ref rcl, memory.Length, wc - rc);
         }
 
@@ -109,37 +112,40 @@ namespace ModernMemory.Collections.Concurrent
         {
             wc += written;
             var ncl = wcl + capacity;
-            writeCursor.VolatileSet(wc);
-            if (wc >= ncl)
+            writeCursor.Set(wc);
+            if (wc < ncl)
             {
-                writeCursorLowerBound = ncl;
+                return;
             }
+            writeCursorLowerBound.Set(ncl);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private nuint AdvanceReadCursor(nuint rc, ref nuint rcl, nuint capacity, nuint read)
         {
             rc += read;
-            readCursor.VolatileSet(rc);
             var ncl = rcl + capacity;
+            readCursor.Set(rc);
             if (rc >= ncl)
             {
                 rcl = ncl;
-                readCursorLowerBound = ncl;
+                readCursorLowerBound.Set(ncl);
             }
             return rc;
         }
 
         [SkipLocalsInit]
-        public bool TryAdd(T item)
+        public bool TryAdd(T item) => TryAddInternal(item, memory.Span);
+
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool TryAddInternal(T item, NativeSpan<T> s)
         {
-            var m = memory;
             var wc = writeCursor.Load();
             var rc = readCursorCache;
-            var wcl = writeCursorLowerBound;
-            var capacity = m.Length;
+            var wcl = writeCursorLowerBound.Load();
+            var capacity = s.Length;
             var pos = wc - wcl;
-            var s = m.Span;
             ref var dst = ref s[pos];
             var full = IsFullWithCache(wc, rc, capacity);
             if (!full)
@@ -151,22 +157,25 @@ namespace ModernMemory.Collections.Concurrent
             return false;
         }
 
-        public nuint AddAtMost(ReadOnlyNativeSpan<T> items)
+        [SkipLocalsInit]
+        public nuint AddAtMost(ReadOnlyNativeSpan<T> items) => AddAtMostInternal(items, memory.Span);
+
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private nuint AddAtMostInternal(ReadOnlyNativeSpan<T> items, NativeSpan<T> span)
         {
             var wc = writeCursor.Load();
-            var wcl = writeCursorLowerBound;
+            var wcl = writeCursorLowerBound.Load();
+            var capacity = span.Length;
             nuint written = 0;
             if (!items.IsEmpty)
             {
                 var rc = readCursorCache;
-                var m = memory;
                 var pos = wc - wcl;
-                var capacity = m.Length;
                 Debug.Assert(pos < capacity);
                 var writableCount = WritableItemsWithCache(wc, rc, capacity, items.Length);
                 if (writableCount > 0)
                 {
-                    var span = m.Span;
                     var writeSpan0 = span.Slice(pos).SliceWhileIfLongerThan(writableCount);
                     written = items.CopyAtMostTo(writeSpan0);
                     if (written < writableCount && written < items.Length)
@@ -188,21 +197,24 @@ namespace ModernMemory.Collections.Concurrent
                 throw new InvalidOperationException("Tried to add an item to the queue while it's full!");
             }
         }
-        public void Add(ReadOnlyNativeSpan<T> items)
+
+        public void Add(ReadOnlyNativeSpan<T> items) => AddInternal(items, memory.Span);
+
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void AddInternal(ReadOnlyNativeSpan<T> items, NativeSpan<T> span)
         {
             var wc = writeCursor.Load();
-            var wcl = writeCursorLowerBound;
+            var wcl = writeCursorLowerBound.Load();
             if (!items.IsEmpty)
             {
                 var rc = readCursorCache;
-                var m = memory;
                 var pos = wc - wcl;
-                var capacity = m.Length;
+                var capacity = span.Length;
                 Debug.Assert(pos < capacity);
                 var writableCount = WritableItemsWithCache(wc, rc, capacity, items.Length);
                 if (writableCount >= items.Length)
                 {
-                    var span = m.Span;
                     var writeSpan0 = span.Slice(pos).SliceWhileIfLongerThan(writableCount);
                     var written = items.CopyAtMostTo(writeSpan0);
                     if (written < writableCount && written < items.Length)
@@ -223,7 +235,7 @@ namespace ModernMemory.Collections.Concurrent
         public ref T? TryPeekRef(out bool success)
         {
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             var wc = writeCursorCache.Load();
             var m = memory;
             var pos = rc - rcl;
@@ -239,7 +251,7 @@ namespace ModernMemory.Collections.Concurrent
         public bool TryPeek(out T? item)
         {
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             var wc = writeCursorCache.Load();
             var m = memory;
             var pos = rc - rcl;
@@ -256,7 +268,7 @@ namespace ModernMemory.Collections.Concurrent
         {
             nuint read = 0;
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             if (!destination.IsEmpty)
             {
                 var wc = writeCursorCache.Load();
@@ -285,7 +297,7 @@ namespace ModernMemory.Collections.Concurrent
         {
             Unsafe.SkipInit(out item);
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             var wc = writeCursorCache.Load();
             var m = memory;
             var pos = rc - rcl;
@@ -321,7 +333,7 @@ namespace ModernMemory.Collections.Concurrent
         public void DequeueRangeExact(NativeSpan<T> destination)
         {
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             if (!destination.IsEmpty)
             {
                 var wc = writeCursorCache.Load();
@@ -355,7 +367,7 @@ namespace ModernMemory.Collections.Concurrent
             nuint written = 0;
             if (writer.IsCompleted) return written;
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             var wc = writeCursorCache.Load();
             var m = memory;
             var pos = rc - rcl;
@@ -389,7 +401,7 @@ namespace ModernMemory.Collections.Concurrent
         {
             nuint read = 0;
             var rc = readCursor.Load();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             if (!destination.IsEmpty)
             {
                 var wc = writeCursorCache.Load();
@@ -475,7 +487,7 @@ namespace ModernMemory.Collections.Concurrent
         public IEnumerator<T> GetEnumerator()
         {
             var wc = writeCursor.VolatileLoad();
-            var rcl = readCursorLowerBound;
+            var rcl = readCursorLowerBound.Load();
             var rc = readCursor.VolatileLoad();
             var m = memory;
             var span = m.Span;

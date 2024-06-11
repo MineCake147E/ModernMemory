@@ -16,14 +16,15 @@ using ModernMemory.Collections;
 namespace ModernMemory
 {
     [StructLayout(LayoutKind.Auto)]
-    public readonly partial struct ReadOnlyNativeMemory<T> : ISpanEnumerable<T>, IMemoryEnumerable<T>, IEquatable<ReadOnlyNativeMemory<T>>
+    [SuppressMessage("Major Code Smell", "S1168:Empty arrays and collections should be returned instead of null", Justification = "[] for ReadOnlyNativeMemory is too slow")]
+    public readonly partial struct ReadOnlyNativeMemory<T> : IReadOnlyNativeMemory<T, ReadOnlyNativeMemory<T>>, IMemoryEnumerable<T>, IEquatable<ReadOnlyNativeMemory<T>>
     {
+        internal readonly MemoryType type;
         internal readonly object? underlyingObject;
         private readonly nuint start;
 #pragma warning disable IDE0032 // Use auto property
         private readonly nuint length;
 #pragma warning restore IDE0032 // Use auto property
-        internal readonly MemoryType type;
 
         /// <summary>
         /// Gets the number of items in the current instance.
@@ -121,54 +122,63 @@ namespace ModernMemory
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                var t = type;
-                ref var head = ref Unsafe.NullRef<T>();
-                var newLength = length;
                 var medium = underlyingObject;
+                var t = type;
+                var localLength = length;
+                nuint newLength = 0;
+                newLength = medium is not null ? localLength : newLength;
                 var localStart = start;
-                var lengthToValidate = nuint.MaxValue;
-                newLength = medium is null ? 0 : newLength;
+                ref readonly var head = ref Unsafe.NullRef<T>();
                 if (medium is not null)
                 {
-                    switch (t)
+                    nuint lengthToValidate;
+                    if ((sbyte)t >= 0)
                     {
-                        case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
-                            Debug.Assert(medium is string);
-                            var ust = Unsafe.As<string>(medium);
-                            head = ref Unsafe.As<char, T>(ref Unsafe.Add(ref Unsafe.AsRef(in ust.GetPinnableReference()), checked((int)localStart)))!;
-                            lengthToValidate = (uint)ust.Length;
-                            break;
-                        case MemoryType.Array:
-                            Debug.Assert(medium is T[]);
-                            var array = Unsafe.As<T[]>(medium);
-                            head = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), localStart)!;
-                            lengthToValidate = (uint)array.Length;
-                            break;
-                        case MemoryType.NativeMemoryManager:
+                        if (t == MemoryType.NativeMemoryManager)
+                        {
                             Debug.Assert(medium is NativeMemoryManager<T>);
                             var nativeMemoryManager = Unsafe.As<NativeMemoryManager<T>>(medium);
-                            var nativeSpan = nativeMemoryManager.CreateNativeSpan(localStart, newLength);
-                            head = ref nativeSpan.Head!;
-                            break;
-                        default:
+                            head = ref nativeMemoryManager.GetReferenceAt(localStart)!;
+#pragma warning disable S907 // "goto" statement should not be used
+                            goto FastForward;
+#pragma warning restore S907 // "goto" statement should not be used
+                        }
+                        else
+                        {
                             Debug.Assert(medium is MemoryManager<T>);
                             var manager = Unsafe.As<MemoryManager<T>>(medium);
                             var span = manager.GetSpan();
-                            head = ref span[checked((int)localStart)]!;
                             lengthToValidate = (uint)span.Length;
-                            break;
+                            head = ref MemoryMarshal.GetReference(span)!;
+                        }
                     }
+                    else
+                    {
+                        if (RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char) && t == MemoryType.String)
+                        {
+                            Debug.Assert(medium is string);
+                            var ust = Unsafe.As<string>(medium);
+                            lengthToValidate = (uint)ust.Length;
+                            head = ref NativeMemoryUtils.As<char, T>(in ust.GetPinnableReference())!;
+                        }
+                        else
+                        {
+                            Debug.Assert(medium is T[]);
+                            var array = Unsafe.As<T[]>(medium);
+                            lengthToValidate = (uint)array.Length;
+                            head = ref MemoryMarshal.GetArrayDataReference(array)!;
+                        }
+                    }
+                    head = ref NativeMemoryUtils.Add(in head, localStart)!;
+                    Debug.Assert(MathUtils.IsRangeInRange(lengthToValidate, localStart, newLength));
                 }
-                if (!MathUtils.IsRangeInRange(lengthToValidate, localStart, newLength))
-                {
-                    NativeMemoryCore.ThrowSliceExceptions(localStart, newLength, lengthToValidate);
-                }
-                return new ReadOnlyNativeSpan<T>(ref head, newLength);
+                FastForward:
+                return new ReadOnlyNativeSpan<T>(in head, newLength);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe MemoryHandle Pin() => NativeMemoryCore.Pin<T>(type, underlyingObject, start, length);
+        public unsafe MemoryHandle Pin() => NativeMemoryCore.Pin<T>(type, underlyingObject, start);
 
         public ReadOnlyMemory<T> GetHeadMemory()
         {
@@ -222,7 +232,6 @@ namespace ModernMemory
                 ? result
                 : ThrowSliceExceptions(start, length);
         }
-
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         [DoesNotReturn]
@@ -292,6 +301,7 @@ namespace ModernMemory
         public override bool Equals(object? obj) => obj is ReadOnlyNativeMemory<T> memory && Equals(memory);
         public bool Equals(ReadOnlyNativeMemory<T> other) => EqualityComparer<object?>.Default.Equals(underlyingObject, other.underlyingObject) && start.Equals(other.start) && length.Equals(other.length) && type == other.type;
         public override int GetHashCode() => HashCode.Combine(underlyingObject, start, length, type);
+        ReadOnlyNativeMemory<T> IReadOnlyNativeMemoryBase<T>.AsNativeMemory() => this;
 
         public struct Enumerator : IEnumerator<T>
         {

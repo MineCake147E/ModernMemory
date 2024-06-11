@@ -369,12 +369,26 @@ namespace ModernMemory
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
         public static bool IsRangeInRange(nuint range, nuint start, nuint length)
         {
-            var olen = range - length;
-            var y = olen <= range;
-#pragma warning disable S2178 // Short-circuit logic should be used in boolean contexts (it's not always faster)
-            return start <= olen & y;
-#pragma warning restore S2178 // Short-circuit logic should be used in boolean contexts
+            var newLength = range - length;
+            var y = start <= newLength;
+            return length <= range && y;
         }
+
+        /// <summary>
+        /// Checks if the sliced range consists of <paramref name="start"/> and <paramref name="length"/> is in between 0 and <paramref name="range"/>.
+        /// </summary>
+        /// <param name="range">The exclusive upper limit of the range.</param>
+        /// <param name="start">The starting point of the sliced range.</param>
+        /// <param name="length">The length of the sliced range.</param>
+        /// <returns><see langword="true"/> if the sliced range consists of <paramref name="start"/> and <paramref name="length"/> is in between 0 and <paramref name="range"/>, <see langword="false"/> otherwise.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static bool IsRangeInRange(uint range, uint start, uint length)
+        {
+            if (Unsafe.SizeOf<nuint>() <= sizeof(uint)) return IsRangeInRange((nuint)range, start, length);
+            nuint end = (nuint)start + length;
+            return end <= range;
+        }
+
         #endregion
 
         #region Sign and CompareTo

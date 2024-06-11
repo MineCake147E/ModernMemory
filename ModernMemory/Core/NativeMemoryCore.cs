@@ -16,30 +16,32 @@ namespace ModernMemory
     internal static class NativeMemoryCore
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe MemoryHandle Pin<T>(MemoryType type, object? medium, nuint start, nuint length)
+        public static unsafe MemoryHandle Pin<T>(MemoryType type, object? medium, nuint start)
         {
             MemoryHandle result = default;
             if (medium is not null)
             {
-                ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(start, length);
+                nuint maxIndex = int.MaxValue;
+                var intIndex = (int)start;
                 switch (type)
                 {
                     case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
                         Debug.Assert(medium is string);
                         var ust = Unsafe.As<string>(medium);
+                        Debug.Assert(start < (uint)ust.Length);
                         var strHandle = GCHandle.Alloc(ust, GCHandleType.Pinned);
-                        ref var head = ref Unsafe.As<char, T>(ref Unsafe.Add(ref Unsafe.AsRef(in ust.GetPinnableReference()), checked((int)start)))!;
-                        result = new(Unsafe.AsPointer(ref head), strHandle);
+                        result = new(Unsafe.AsPointer(ref Unsafe.Add(ref Unsafe.AsRef(in ust.GetPinnableReference()), intIndex)), strHandle);
                         break;
                     case MemoryType.Array:
                         Debug.Assert(medium is T[]);
                         var array = Unsafe.As<T[]>(medium);
-                        var intIndex = checked((int)start);
+                        Debug.Assert(start < (uint)array.Length);
                         var handle = GCHandle.Alloc(array, GCHandleType.Pinned);
                         var arrayPointer = Unsafe.AsPointer(ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), intIndex));
                         result = new(arrayPointer, handle);
                         break;
                     case MemoryType.NativeMemoryManager:
+                        maxIndex = nuint.MaxValue;
                         Debug.Assert(medium is NativeMemoryManager<T>);
                         var nativeMemoryManager = Unsafe.As<NativeMemoryManager<T>>(medium);
                         result = nativeMemoryManager.Pin(start);
@@ -47,9 +49,11 @@ namespace ModernMemory
                     default:
                         Debug.Assert(medium is MemoryManager<T>);
                         var manager = Unsafe.As<MemoryManager<T>>(medium);
-                        result = manager.Pin(checked((int)start));
+                        Debug.Assert(start < (uint)manager.Memory.Length);
+                        result = manager.Pin(intIndex);
                         break;
                 }
+                ArgumentOutOfRangeException.ThrowIfGreaterThan(start, maxIndex);
             }
             return result;
         }

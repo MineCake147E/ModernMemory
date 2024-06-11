@@ -2,6 +2,8 @@
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -22,6 +24,8 @@ namespace ModernMemory.Buffers
 
         public override NativeSpan<T> CreateNativeSpan(nuint start, nuint length) => GetNativeSpan().Slice(start, length);
         public override ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length) => GetReadOnlyNativeSpan().Slice(start, length);
+        public override ref T GetReferenceAt(nuint start = 0U) => ref GetNativeSpan()[start];
+
         public override NativeSpan<T> GetNativeSpan() => MemoryManager.GetSpan();
         public override ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start)
         {

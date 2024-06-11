@@ -176,6 +176,12 @@ namespace ModernMemory.Buffers.Pooling
                     region.Dispose();
                 }
             }
+
+            public override ref T GetReferenceAt(nuint start = 0U)
+            {
+                CheckOccupation(start);
+                return ref region.NativeSpan[start];
+            }
         }
 
         internal sealed unsafe class PartitionedArrayMemoryManager<TFixedGenericInlineArray> : PartitionedArrayMemoryManagerBase
