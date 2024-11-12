@@ -22,6 +22,7 @@ namespace ModernMemory.Buffers
         public abstract ReadOnlyNativeSpan<T> CreateReadOnlyNativeSpan(nuint start, nuint length);
         public abstract NativeSpan<T> GetNativeSpan();
         public abstract ReadOnlyMemory<T> GetReadOnlyMemorySegment(nuint start);
+        public virtual MemoryManager<T> CreateSlicedMemoryManager(nuint start) => new NativeMemorySlicedMemoryManager<T>(this, start);
 
         public ReadOnlyNativeSpan<T> GetReadOnlyNativeSpan() => GetNativeSpan();
         public abstract MemoryHandle Pin(nuint elementIndex);

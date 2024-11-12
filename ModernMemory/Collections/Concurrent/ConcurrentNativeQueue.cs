@@ -4,9 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ModernMemory.DataFlow
+namespace ModernMemory.Collections.Concurrent
 {
-    internal class NativeArrayBufferWriter
+    public sealed partial class ConcurrentNativeQueue
     {
+        
     }
 }

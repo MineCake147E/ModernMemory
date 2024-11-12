@@ -25,6 +25,8 @@ namespace ModernMemory.Collections.Storage
         {
         }
 
+        public readonly nuint Length => regionCache.Length;
+
         public readonly NativeSpan<T> Span => regionCache.NativeSpan;
         public readonly NativeMemory<T> Memory => owner?.NativeMemory ?? default;
 

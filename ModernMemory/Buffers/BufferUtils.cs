@@ -13,7 +13,7 @@ namespace ModernMemory.Buffers
     public static class BufferUtils
     {
 
-        internal static nuint CalculatePartitionSizeClass(nuint size)
+        public static nuint CalculatePartitionSizeClass(nuint size)
         {
             var mask = size < 16 ? 1 : 0;
             nuint res = size;
@@ -25,7 +25,7 @@ namespace ModernMemory.Buffers
             return res;
         }
 
-        internal static nuint CalculatePartitionSizeClassIndex(nuint size, out nuint sizeClass)
+        public static nuint CalculatePartitionSizeClassIndex(nuint size, out nuint sizeClass)
         {
             var mask = size < 16 ? 1 : 0;
             nuint res = size;
@@ -44,7 +44,7 @@ namespace ModernMemory.Buffers
             return (res & 3) + (((nuint)e - 3) << 2) + v;
         }
 
-        internal static nuint CalculatePartitionSizeClassFromIndex(nuint index)
+        public static nuint CalculatePartitionSizeClassFromIndex(nuint index)
         {
             var exponent = index >> 2;
             var h = exponent > 0 ? (nuint)0b1 : 0;

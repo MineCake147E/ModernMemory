@@ -21,6 +21,14 @@ namespace ModernMemory.DataFlow
         bool TryGetMaxBufferSize(out nuint space);
 
         /// <summary>
+        /// Gets the maximum suitable buffer size for <see cref="GetNativeMemory(nuint)"/> that does not force the underlying buffer of the <see cref="INativeBufferWriter{T}"/> to grow.<br/>
+        /// </summary>
+        /// <param name="space">When this method returns, contains the maximum suitable buffer size for <see cref="GetNativeMemory(nuint)"/>, if the <see cref="INativeBufferWriter{T}"/> can suggest it; otherwise, the <see cref="nuint.MaxValue"/>.<br/>
+        /// This parameter is passed uninitialized.</param>
+        /// <returns><see langword="true"/> if the <see cref="INativeBufferWriter{T}"/> can suggest the maximum suitable buffer size; otherwise, <see langword="false"/>.</returns>
+        bool TryGetSuitableBufferSize(out nuint space) => TryGetMaxBufferSize(out space);
+
+        /// <summary>
         /// Notifies <see cref="INativeBufferWriter{T}"/> that <paramref name="count"/> amount of data was written to the output <see cref="NativeSpan{T}"/>/<see cref="NativeMemory{T}"/>
         /// </summary>
         /// <param name="count">The number of data items written to the <see cref="NativeSpan{T}"/> or <see cref="NativeMemory{T}"/>.</param>
@@ -67,8 +75,8 @@ namespace ModernMemory.DataFlow
         /// </summary>
         /// <param name="sizeHint">The minimum length of the returned <see cref="NativeSpan{T}"/>.</param>
         /// <remarks>
-        /// This can return an empty <see cref="NativeSpan{T}"/> but it can not throw
-        /// if no buffer is available.<br/>
+        /// This can return an empty <see cref="NativeSpan{T}"/> but it can not throw anything
+        /// even if no buffer is available.<br/>
         /// There is no guarantee that successive calls will return the same buffer or the same-sized buffer.<br/>
         /// You must request a new buffer after calling <see cref="Advance(nuint)"/> to continue writing more data and cannot write to a previously acquired buffer.
         /// </remarks>
@@ -79,8 +87,8 @@ namespace ModernMemory.DataFlow
         /// Returns a <see cref="NativeMemory{T}"/> to write to that is at least the requested size (specified by <paramref name="sizeHint"/>), or the maximum size that this <see cref="INativeBufferWriter{T}"/> can offer, whichever smaller.<br/>
         /// </summary>
         /// <remarks>
-        /// This can return an empty <see cref="NativeSpan{T}"/> but it can not throw
-        /// if no buffer is available.<br/>
+        /// This can return an empty <see cref="NativeSpan{T}"/> but it can not throw anything
+        /// even if no buffer is available.<br/>
         /// There is no guarantee that successive calls will return the same buffer or the same-sized buffer.<br/>
         /// You must request a new buffer after calling <see cref="Advance(nuint)"/> to continue writing more data and cannot write to a previously acquired buffer.
         /// </remarks>
@@ -129,7 +137,8 @@ namespace ModernMemory.DataFlow
                 while (itemsWritten >= span.Length)
                 {
                     Advance(itemsWritten);
-                    span = GetNativeSpan(allocSize);
+                    itemsWritten = 0;
+                    span = TryGetNativeSpan(allocSize);
                     if (span.IsEmpty)
                     {
                         throw new ArgumentException($"Ran out of buffer!", nameof(items));

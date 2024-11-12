@@ -12,6 +12,9 @@ namespace ModernMemory.Collections.Storage
         NativeSpan<T> Span { get; }
 
         NativeMemory<T> Memory { get; }
+
+        nuint Length => Span.Length;
+
         static virtual nuint MaxSize => nuint.MaxValue / (nuint)Unsafe.SizeOf<T>();
     }
 

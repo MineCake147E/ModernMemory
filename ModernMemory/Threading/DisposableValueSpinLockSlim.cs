@@ -37,7 +37,9 @@ namespace ModernMemory.Threading
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void Exit() => Volatile.Write(ref lockField, 0);
 
-        public void Dispose() => Interlocked.CompareExchange(ref lockField, -1, 0);
+        public void Dispose() => DisposeInternal();
+
+        public bool TryDispose() => Interlocked.Exchange(ref lockField, -1) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void DisposeInternal() => Volatile.Write(ref lockField, -1);

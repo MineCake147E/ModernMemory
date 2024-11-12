@@ -109,6 +109,15 @@ namespace ModernMemory.Collections
             Debug.Assert(m == items.Length);
         }
 
+        public void Add(ReadOnlySequenceSlim<T> items)
+        {
+            EnsureCapacityToAdd(items.Length);
+            foreach (var segment in items.GetSegmentsEnumerable())
+            {
+                Add(segment.Span);
+            }
+        }
+
         public void Advance(nuint count)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThan(count, Writable.Length);

@@ -54,6 +54,7 @@ namespace ModernMemory.Collections
 
         public void Add(ReadOnlyNativeSpan<T> items) => core.Add(items);
         public void Add(T item) => core.Add(item);
+        public void Add(ReadOnlySequenceSlim<T> items) => core.Add(items);
         public void Advance(nuint count) => core.Advance(count);
         public void Clear() => core.Clear();
         public T? Dequeue() => core.Dequeue();

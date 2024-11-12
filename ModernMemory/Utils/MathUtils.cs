@@ -12,6 +12,7 @@ namespace ModernMemory
 {
     public static class MathUtils
     {
+        #region Multiplication and Division
         /// <summary>
         /// Divides tzc number consists of two <see cref="nuint"/> number <paramref name="hi"/> and <paramref name="lo"/> by tzc constant <paramref name="divisor"/>.
         /// </summary>
@@ -238,6 +239,7 @@ namespace ModernMemory
             return BigDivConstant(high, low, denominator);
         }
 
+        #endregion
         [DoesNotReturn]
         internal static nuint ThrowOverflowException()
         {
@@ -406,6 +408,15 @@ namespace ModernMemory
             var p = self > other;
             var n = self < other;
             return (p ? 1 : 0) - (n ? 1 : 0);
+        }
+
+        /// <inheritdoc cref="IComparable{T}.CompareTo(T?)"/>
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        public static nint CompareToByComparisonOperatorsIntPtr<T>(this T self, T other) where T : IComparisonOperators<T, T, bool>
+        {
+            var p = self > other;
+            var n = self < other;
+            return (p ? (nint)1 : 0) - (n ? (nint)1 : 0);
         }
         #endregion
 

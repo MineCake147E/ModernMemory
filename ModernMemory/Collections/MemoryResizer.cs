@@ -17,7 +17,6 @@ namespace ModernMemory.Collections
 #pragma warning restore IDE0032 // Use auto property
         private MemoryOwnerContainer<T> owner;
         private NativeMemoryPool<T>? pool;
-        private bool disposedValue;
 
         public MemoryResizer()
         {
@@ -64,7 +63,7 @@ namespace ModernMemory.Collections
 
         public readonly bool IsUninitialized => pool is null;
 
-        public NativeSpan<T> Span => nativeMemory.Span;
+        public readonly NativeSpan<T> Span => nativeMemory.Span;
 
         public static void LazyInit(ref MemoryResizer<T> resizer)
         {
@@ -181,7 +180,8 @@ namespace ModernMemory.Collections
 
         private void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            var localPool = Interlocked.Exchange(ref pool, null);
+            if (localPool is not null)
             {
                 if (disposing)
                 {
@@ -190,8 +190,6 @@ namespace ModernMemory.Collections
                 }
                 nativeMemory = default;
                 owner = default;
-                pool = null;
-                disposedValue = true;
             }
         }
 

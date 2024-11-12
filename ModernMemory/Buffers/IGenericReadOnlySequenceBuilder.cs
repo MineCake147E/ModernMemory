@@ -16,7 +16,7 @@ namespace ModernMemory.Buffers
     /// <typeparam name="TSequencePosition"></typeparam>
     /// <typeparam name="TEnumerator"></typeparam>
     public interface IGenericReadOnlySequenceBuilder<T, TSequence, TSequencePosition, TEnumerator> : IDisposable
-        where TSequence : struct, IReadOnlySequence<T, TSequence, TSequencePosition, TEnumerator>
+        where TSequence : struct, ISliceableReadOnlySequence<T, TSequence, TSequencePosition, TEnumerator>
         where TSequencePosition : struct, ISequencePosition<TSequencePosition>
         where TEnumerator : IEnumerator<T>
     {

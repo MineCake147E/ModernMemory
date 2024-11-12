@@ -232,8 +232,8 @@ namespace ModernMemory.Tests.Sorting
 
         private static void AssertGuardRegions<T>(ReadOnlyNativeSpan<T> actual, ReadOnlyNativeSpan<T> expected, nuint guardSize)
         {
-            using var aa = new ArrayOwner<T>(guardSize);
-            using var ae = new ArrayOwner<T>(guardSize);
+            using var aa = new MemoryArray<T>(guardSize);
+            using var ae = new MemoryArray<T>(guardSize);
             var gaf = actual.Slice(0, guardSize);
             var gef = expected.Slice(0, guardSize);
             gaf.CopyTo(aa.Span);

@@ -12,7 +12,7 @@ namespace ModernMemory.Collections
 {
     public sealed class CopiedValuesEnumerator<T> : IEnumerator<T>
     {
-        ArrayOwner<T>? owner;
+        MemoryArray<T>? owner;
         ReadOnlyNativeMemory<T>.Enumerator enumerator;
 
         public CopiedValuesEnumerator(ReadOnlyNativeSpan<T> values) : this(values, NativeMemoryPool<T>.Shared) { }

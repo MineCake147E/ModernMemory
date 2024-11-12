@@ -13,7 +13,7 @@ using ModernMemory.Collections;
 namespace ModernMemory.Buffers
 {
     [StructLayout(LayoutKind.Sequential)]
-    public readonly partial struct ReadOnlyMemorySequence<T> : IReadOnlySequence<T, ReadOnlyMemorySequence<T>, SlimSequencePosition, ReadOnlyMemorySequence<T>.Enumerator>
+    public readonly partial struct ReadOnlyMemorySequence<T> : ISliceableReadOnlySequence<T, ReadOnlyMemorySequence<T>, SlimSequencePosition, ReadOnlyMemorySequence<T>.Enumerator>
     {
         private readonly ReadOnlyNativeMemory<ReadOnlySequenceSegment<T>> segments;
         private readonly nuint firstIndex;

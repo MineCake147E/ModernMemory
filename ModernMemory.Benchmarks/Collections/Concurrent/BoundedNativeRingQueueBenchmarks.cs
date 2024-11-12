@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,6 +9,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using ModernMemory.Collections.Concurrent;
+using ModernMemory.Collections.Storage;
 using ModernMemory.Threading;
 
 namespace ModernMemory.Benchmarks.Collections.Concurrent
@@ -16,7 +18,7 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
     [DisassemblyDiagnoser(maxDepth: int.MaxValue)]
     public class BoundedNativeRingQueueBenchmarks
     {
-        private BoundedNativeRingQueue<int>? queue;
+        private BoundedNativeRingQueue<int, ArrayStorage<int>>? queue;
         private Task? clearTask;
         private CancellationTokenSource? tokenSource;
 
@@ -25,31 +27,32 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
 
         private const int OperationsPerInvoke = 1 << 12;
 
-        [GlobalSetup]
-        public void Setup()
+        [GlobalSetup(Target = nameof(BoundedNativeRingQueue))]
+        public void SetupBoundedNativeRingQueue()
         {
-            queue = new((nuint)Capacity);
+            queue = new(new(Capacity));
             tokenSource = new();
             clearTask = Task.Run(async () =>
             {
                 await Task.Yield();
+                var q = queue;
                 while (!tokenSource.IsCancellationRequested)
                 {
-                    for (int i = 0; i < 1024; i++)
+                    for (var i = 0; i < 1024; i++)
                     {
-                        queue?.Clear();
+                        q.TryDequeue(out _);
                     }
                 }
             });
         }
 
         [Benchmark(OperationsPerInvoke = OperationsPerInvoke)]
-        public void TryAddUntilSuccessSingle()
+        public void BoundedNativeRingQueue()
         {
             var q = queue;
             ArgumentNullException.ThrowIfNull(q);
             var w = q.GetWriter();
-            for (int i = 0; i < OperationsPerInvoke; i++)
+            for (var i = 0; i < OperationsPerInvoke; i++)
             {
                 while (!w.TryAdd(i))
                 {
@@ -58,8 +61,8 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
             }
         }
 
-        [GlobalCleanup]
-        public void Cleanup()
+        [GlobalCleanup(Target = nameof(BoundedNativeRingQueue))]
+        public void CleanupBoundedNativeRingQueue()
         {
             tokenSource?.Cancel();
             clearTask?.Wait();

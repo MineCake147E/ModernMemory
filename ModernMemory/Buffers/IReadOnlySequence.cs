@@ -1,21 +1,10 @@
-﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using ModernMemory.Collections;
+﻿using System.Buffers;
 
 namespace ModernMemory.Buffers
 {
-    public interface IReadOnlySequence<T, TSelf, TSequencePosition, TEnumerator> : ITypedEnumerable<T, TEnumerator>, ISliceable<TSelf, nuint>
-        where TSelf : struct, IReadOnlySequence<T, TSelf, TSequencePosition, TEnumerator>
+    public interface IReadOnlySequence<T, TSequencePosition>
         where TSequencePosition : struct, ISequencePosition<TSequencePosition>
-        where TEnumerator : IEnumerator<T>
     {
-        static virtual TSelf Empty => default;
-
         /// <inheritdoc cref="ReadOnlySequence{T}.IsEmpty"/>
         bool IsEmpty { get; }
         /// <inheritdoc cref="ReadOnlySequence{T}.IsSingleSegment"/>
@@ -56,14 +45,9 @@ namespace ModernMemory.Buffers
             return sum;
         }
 
-        TSelf Slice(TSequencePosition start);
-        TSelf Slice(nuint start, TSequencePosition end);
-        TSelf Slice(TSequencePosition start, nuint length);
-        TSelf Slice(TSequencePosition start, TSequencePosition end);
-
         /// <inheritdoc cref="ReadOnlySequence{T}.TryGet(ref SequencePosition, out ReadOnlyMemory{T}, bool)"/>
         bool TryGet(TSequencePosition position, out ReadOnlyNativeMemory<T> memory, out TSequencePosition newPosition);
 
-        static abstract implicit operator ReadOnlySequenceSlim<T>(TSelf self);
+        ReadOnlySequenceSlim<T> AsReadOnlySequenceSlim();
     }
 }

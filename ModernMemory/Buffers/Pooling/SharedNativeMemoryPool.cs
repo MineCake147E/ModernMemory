@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Linq;
@@ -41,9 +40,9 @@ namespace ModernMemory.Buffers.Pooling
         public override MemoryOwnerContainer<T> Rent(nuint minBufferSize)
         {
             if (minBufferSize == 0) return default;
-            var shared = MemoryPool<T>.Shared;
-            return new(shared.MaxBufferSize >= 0 && minBufferSize <= (nuint)shared.MaxBufferSize
-                ? shared.Rent((int)minBufferSize).AsNativeMemoryOwner()
+            var shared = ArrayPool<T>.Shared;
+            return new(Array.MaxLength >= 0 && minBufferSize <= (nuint)Array.MaxLength
+                ? new SharedPooledArrayMemoryManager<T>(shared.Rent((int)minBufferSize))
                 : new NativeMemoryRegionOwner<T>(minBufferSize));
         }
 
@@ -54,101 +53,6 @@ namespace ModernMemory.Buffers.Pooling
         private void ReturnOwner(PartitionedArrayMemoryOwner owner) => ArgumentNullException.ThrowIfNull(owner);
 
         protected override void Dispose(bool disposing) { }
-
-        private sealed class ThreadLocalPool : NativeMemoryPool<T>
-        {
-            private DisposableValueSpinLockSlim spinLock;
-            private readonly uint id;
-            private readonly SharedNativeMemoryPool<T> parent;
-            private readonly BlockingNativePile<PartitionedArrayMemoryOwner> ownerPool;
-            private readonly ArrayOwner<PartitionedArrayPool?> partitionedArrayPools;
-
-
-            private static volatile uint nextId = 0;
-            private const uint SharedPoolId = uint.MaxValue;
-
-            public ThreadLocalPool(SharedNativeMemoryPool<T> parent)
-            {
-                id = Interlocked.Increment(ref nextId) - 1;
-                ArgumentNullException.ThrowIfNull(parent);
-                this.parent = parent;
-                // Due to the growing nature of ownerPool, it might be better using shared pool instead of allocating pool.
-                ownerPool = new(NativeMemoryPool<PartitionedArrayMemoryOwner>.Shared, 512);
-                var maxPartitionSize = RuntimeFeature.IsDynamicCodeCompiled ? PartitionedArrayMemoryManager<FixedArray4<uint>>.MaxPartitionSize : PartitionedArrayMemoryManager<FixedArray16<uint>>.MaxPartitionSize;
-                var maxPartitionSizeClass = BufferUtils.CalculatePartitionSizeClassIndex(maxPartitionSize, out var size);
-                if (size > maxPartitionSize && maxPartitionSize > 0) maxPartitionSizeClass--;
-                partitionedArrayPools = new(NativeMemoryPool<PartitionedArrayPool?>.SharedAllocatingPool.Rent(maxPartitionSizeClass + 1));
-            }
-
-            public bool IsShared => id == SharedPoolId;
-
-            public override nuint MaxNativeBufferSize => NativeMemoryUtils.MaxSizeForType<T>();
-
-            public override MemoryOwnerContainer<T> Rent(nuint minBufferSize) => RentInternal(minBufferSize);
-
-            private MemoryOwnerContainer<T> RentInternal(nuint minBufferSize)
-            {
-                var index = BufferUtils.CalculatePartitionSizeClassIndex(minBufferSize, out var sizeClass);
-                var pap = partitionedArrayPools.Span;
-                if (index < partitionedArrayPools.Length)
-                {
-                    if (TryRentByIndex(index, pap, out var container))
-                    {
-                        return container;
-                    }
-                    if (!IsShared)
-                    {
-                        var shared = parent.sharedPool;
-                        if (shared != this) return shared.RentSharedInternal(sizeClass);
-                    }
-                }
-                return SharedAllocatingPool.Rent(sizeClass);
-            }
-
-            private MemoryOwnerContainer<T> RentSharedInternal(nuint minBufferSize)
-            {
-                Debug.Assert(IsShared);
-                var index = BufferUtils.CalculatePartitionSizeClassIndex(minBufferSize, out var sizeClass);
-                var pap = partitionedArrayPools.Span;
-                return index < partitionedArrayPools.Length && TryRentByIndex(index, pap, out var container)
-                    ? container
-                    : SharedAllocatingPool.Rent(sizeClass);
-            }
-
-            private bool TryRentByIndex(nuint index, NativeSpan<PartitionedArrayPool?> pap, out MemoryOwnerContainer<T> container)
-            {
-                if (!ownerPool.TryPopSpinningWhileNotNull(out var owner))
-                {
-                    parent.sharedOwners.TryTake(out owner);
-                }
-                owner ??= new(parent);
-                var retryCount = nuint.MaxValue;
-                var ni = index;
-                while (++retryCount < 4 && ni < pap.Length)
-                {
-                    var pool = pap[ni];
-                    if (pool is null)
-                    {
-                        pap[ni] = pool = new(index);
-                    }
-                    if (pool.TryRent(owner))
-                    {
-                        container = new(owner);
-                        return true;
-                    }
-                    ni++;
-                }
-                if (!ownerPool.TryAdd(owner))
-                {
-                    parent.sharedOwners.Add(owner);
-                }
-                container = default;
-                return false;
-            }
-
-            public override MemoryOwnerContainer<T> RentWithDefaultSize() => Rent(DefaultSize);
-            protected override void Dispose(bool disposing) { }
-        }
 
         private sealed class PartitionedArrayPool : IDisposable
         {

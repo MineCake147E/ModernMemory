@@ -11,7 +11,9 @@ namespace ModernMemory.Collections.Storage
     public struct MemoryOwnerContainerStorage<T> : ICollectionStorage<T>
     {
         private MemoryOwnerContainer<T> owner;
+#pragma warning disable IDE0032 // Use auto property
         private NativeMemory<T> memory;
+#pragma warning restore IDE0032 // Use auto property
 
         public MemoryOwnerContainerStorage(MemoryOwnerContainer<T> owner) : this()
         {

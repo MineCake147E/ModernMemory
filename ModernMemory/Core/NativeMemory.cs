@@ -193,7 +193,7 @@ namespace ModernMemory
                             var manager = Unsafe.As<MemoryManager<T>>(medium);
                             var span = manager.GetSpan();
                             lengthToValidate = (uint)span.Length;
-                            head = ref MemoryMarshal.GetReference(span)!;
+                            head = ref Unsafe.Add(ref MemoryMarshal.GetReference(span), localStart)!;
                         }
                     }
                     else
@@ -203,17 +203,16 @@ namespace ModernMemory
                             Debug.Assert(medium is string);
                             var ust = Unsafe.As<string>(medium);
                             lengthToValidate = (uint)ust.Length;
-                            head = ref Unsafe.As<char, T>(ref Unsafe.AsRef(in ust.GetPinnableReference()))!;
+                            head = ref Unsafe.Add(ref Unsafe.As<char, T>(ref Unsafe.AsRef(in ust.GetPinnableReference())), localStart)!;
                         }
                         else
                         {
                             Debug.Assert(medium is T[]);
                             var array = Unsafe.As<T[]>(medium);
                             lengthToValidate = (uint)array.Length;
-                            head = ref MemoryMarshal.GetArrayDataReference(array)!;
+                            head = ref Unsafe.Add(ref MemoryMarshal.GetArrayDataReference(array), localStart)!;
                         }
                     }
-                    head = ref Unsafe.Add(ref head, localStart)!;
                     Debug.Assert(MathUtils.IsRangeInRange(lengthToValidate, localStart, newLength));
                 }
                 FastForward:
@@ -234,28 +233,38 @@ namespace ModernMemory
             var t = type;
             var newLength = (int)nuint.Min(int.MaxValue, length);
             var medium = underlyingObject;
-            var newStart = checked((int)start);
+            var localStart = start;
             newLength = medium is null ? 0 : newLength;
             if (medium is not null)
             {
-                switch (t)
+                if (nint.MaxValue > int.MaxValue && localStart + (nuint)newLength > int.MaxValue && t == MemoryType.NativeMemoryManager)
                 {
-                    case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
-                        Debug.Assert(medium is string);
-                        var ust = Unsafe.As<string>(medium);
-                        var cm = MemoryMarshal.AsMemory(ust.AsMemory()).Slice(newStart, newLength);
-                        result = Unsafe.As<Memory<char>, Memory<T>>(ref cm);
-                        break;
-                    case MemoryType.Array:
-                        Debug.Assert(medium is T[]);
-                        var array = Unsafe.As<T[]>(medium);
-                        result = array.AsMemory(newStart, newLength);
-                        break;
-                    default:
-                        Debug.Assert(medium is MemoryManager<T>);
-                        var manager = Unsafe.As<MemoryManager<T>>(medium);
-                        result = manager.Memory.Slice(newStart, newLength);
-                        break;
+                    Debug.Assert(medium is NativeMemoryManager<T>);
+                    var manager = Unsafe.As<NativeMemoryManager<T>>(medium);
+                    result = manager.CreateSlicedMemoryManager(localStart).Memory.Slice(0, newLength);
+                }
+                else
+                {
+                    var newStart = checked((int)localStart);
+                    switch (t)
+                    {
+                        case MemoryType.String when RuntimeHelpers.IsReferenceOrContainsReferences<T>() == RuntimeHelpers.IsReferenceOrContainsReferences<char>() && typeof(T) == typeof(char):
+                            Debug.Assert(medium is string);
+                            var ust = Unsafe.As<string>(medium);
+                            var cm = MemoryMarshal.AsMemory(ust.AsMemory()).Slice(newStart, newLength);
+                            result = Unsafe.As<Memory<char>, Memory<T>>(ref cm);
+                            break;
+                        case MemoryType.Array:
+                            Debug.Assert(medium is T[]);
+                            var array = Unsafe.As<T[]>(medium);
+                            result = array.AsMemory(newStart, newLength);
+                            break;
+                        default:
+                            Debug.Assert(medium is MemoryManager<T>);
+                            var manager = Unsafe.As<MemoryManager<T>>(medium);
+                            result = manager.Memory.Slice(newStart, newLength);
+                            break;
+                    }
                 }
             }
             return result;

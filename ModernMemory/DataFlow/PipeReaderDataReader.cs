@@ -18,18 +18,18 @@ namespace ModernMemory.DataFlow
 
         public void Complete(Exception? exception = null) => PipeReader.Complete();
 
-        public async ValueTask<ReadResult<byte>> ReadAsync(CancellationToken cancellationToken = default) => (await PipeReader.ReadAsync(cancellationToken)).AsReadResult();
+        public async ValueTask<GenericReadResult<byte>> ReadAsync(CancellationToken cancellationToken = default) => (await PipeReader.ReadAsync(cancellationToken)).AsGenericReadResult();
 
-        public async ValueTask<ReadResult<byte>> ReadAtLeastAsync(nuint minimumSize, CancellationToken cancellationToken = default)
+        public async ValueTask<GenericReadResult<byte>> ReadAtLeastAsync(nuint minimumSize, CancellationToken cancellationToken = default)
         {
             ArgumentOutOfRangeException.ThrowIfGreaterThan(minimumSize, (nuint)int.MaxValue);
-            return (await PipeReader.ReadAtLeastAsync((int)minimumSize, cancellationToken)).AsReadResult();
+            return (await PipeReader.ReadAtLeastAsync((int)minimumSize, cancellationToken)).AsGenericReadResult();
         }
 
-        public bool TryRead(out ReadResult<byte> result)
+        public bool TryRead(out GenericReadResult<byte> result)
         {
             var res = PipeReader.TryRead(out var r);
-            result = r.AsReadResult();
+            result = r.AsGenericReadResult();
             return res;
         }
     }

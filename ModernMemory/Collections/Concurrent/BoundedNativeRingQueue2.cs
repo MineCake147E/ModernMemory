@@ -35,6 +35,11 @@ namespace ModernMemory.Collections.Concurrent
             core = new(storage);
         }
 
+        public BoundedNativeRingQueue2(nuint capacity)
+        {
+            core = new(new(NativeMemoryPool<T>.SharedAllocatingPool.Rent(capacity)));
+        }
+
         public BoundedNativeRingQueue2(MemoryOwnerContainerStorage<T> storage, ReadOnlyNativeSpan<T> initialValues)
         {
             core = new(storage, initialValues);

@@ -28,7 +28,6 @@ namespace ModernMemory.Collections.Concurrent
         private PaddedUIntPtr readCursorLowerBound = new();
         private PaddedUIntPtr writeCursorCache = new();
         private PaddedUIntPtr readCursor = new();
-        private TStorage storage;
         private uint disposedValue = AtomicUtils.GetValue(false);
 #pragma warning disable S1144 // Unused private types or members should be removed (needed for padding to prevent false sharing)
         private readonly Vector512<byte> padding1 = default;
@@ -36,6 +35,7 @@ namespace ModernMemory.Collections.Concurrent
         private PaddedUIntPtr writeCursorLowerBound = new();
         private PaddedUIntPtr writeCursor = new();
         private PaddedUIntPtr readCursorCache = new();
+        private TStorage storage;
 
         internal NativeSpan<T> Span => storage.Span;
 

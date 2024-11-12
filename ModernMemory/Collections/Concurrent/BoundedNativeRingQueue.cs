@@ -19,6 +19,11 @@ using ModernMemory.Threading;
 
 namespace ModernMemory.Collections.Concurrent
 {
+    /// <summary>
+    /// A lock-free single-reader single-writer thread-safe queue.
+    /// </summary>
+    /// <typeparam name="T">The type of items.</typeparam>
+    /// <typeparam name="TStorage">The type of the storage manager.</typeparam>
     [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public sealed partial class BoundedNativeRingQueue<T, TStorage> : IDisposable, IQueue<T>, IEnumerable<T>
         where TStorage : ICollectionStorage<T>

@@ -10,7 +10,7 @@ using ModernMemory.DataFlow;
 namespace ModernMemory.Buffers
 {
     public ref struct SequenceReader<T, TSequence, TSequencePosition, TEnumerator>
-        where TSequence : struct, IReadOnlySequence<T, TSequence, TSequencePosition, TEnumerator>
+        where TSequence : struct, ISliceableReadOnlySequence<T, TSequence, TSequencePosition, TEnumerator>
         where TSequencePosition : struct, ISequencePosition<TSequencePosition>
         where TEnumerator : IEnumerator<T>
     {

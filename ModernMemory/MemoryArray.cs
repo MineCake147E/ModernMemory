@@ -16,7 +16,7 @@ using ModernMemory.Collections;
 
 namespace ModernMemory
 {
-    public sealed class ArrayOwner<T> : INativeMemoryOwner<T>, INativeIndexable<T>, IMemoryEnumerable<T>, ISpanEnumerable<T>
+    public sealed class MemoryArray<T> : INativeMemoryOwner<T>, INativeIndexable<T>, IMemoryEnumerable<T>, ISpanEnumerable<T>
     {
 #pragma warning disable IDE0032 // Use auto property
         private NativeMemory<T> nativeMemory;
@@ -26,26 +26,26 @@ namespace ModernMemory
 
         public NativeMemory<T> NativeMemory => nativeMemory;
 
-        public static ArrayOwner<T> Empty { get; } = new(true);
+        public static MemoryArray<T> Empty { get; } = new(true);
 
-        public ArrayOwner(INativeMemoryOwner<T>? owner)
+        public MemoryArray(INativeMemoryOwner<T>? owner)
         {
             SetOwner(new(owner));
         }
 
-        internal ArrayOwner(MemoryOwnerContainer<T> owner)
+        internal MemoryArray(MemoryOwnerContainer<T> owner)
         {
             SetOwner(owner);
         }
 
-        public ArrayOwner(nuint minimumLength) : this(minimumLength, NativeMemoryPool<T>.Shared) { }
+        public MemoryArray(nuint minimumLength) : this(minimumLength, NativeMemoryPool<T>.Shared) { }
 
-        public ArrayOwner(nuint minimumLength, NativeMemoryPool<T> pool)
+        public MemoryArray(nuint minimumLength, NativeMemoryPool<T> pool)
         {
             SetOwner(pool.Rent(minimumLength));
         }
 
-        private ArrayOwner(bool empty = false)
+        private MemoryArray(bool empty = false)
         {
             if (empty)
             {
@@ -86,7 +86,7 @@ namespace ModernMemory
             }
         }
 
-        ~ArrayOwner()
+        ~MemoryArray()
         {
             Dispose(disposing: false);
         }

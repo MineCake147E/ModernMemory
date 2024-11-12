@@ -16,74 +16,47 @@ namespace ModernMemory.Collections
     /// 
     /// </summary>
     /// <typeparam name="T"></typeparam>
+    public sealed partial class NativeRingQueue<T> : IDisposable
+    {
+        private DisposableValueSpinLockSlim spinLock;
+        private nuint readHead;
+        private nuint readableTail;
+        private nuint writeHead;
+        internal MemoryResizer<T> resizer;
+
+        internal bool IsDisposed => spinLock.IsDisposed;
+
+
+    }
+
     public sealed partial class NativeRingQueue<T>
     {
-        DisposableValueSpinLockSlim spinLock;
-        private nuint readHead = 0;
-        private nuint readableGuard = nuint.MaxValue;
-        private nuint readCount = 0;
-        private nuint writeHead = 0;
-        private nuint writtenCount = 0;
-        private NativeMemory<T> readMemory;
-        private MemoryResizer<T> resizer;
-        private BlockingNativeQueue<MemoryOwnerContainer<T>> readOnlyContainers;
-        /*
-        private static nuint GetCapacity(nuint length, nuint readHead, nuint writeHead)
+        private void Dispose(bool disposing)
         {
-
-        }*/
-
-        public bool TryDequeue(out T? item)
-        {
-            var rm = readMemory;
-            var res = default(T?);
-            var success = false;
-            var rH = Volatile.Read(ref readHead);
-            var rG = Volatile.Read(ref readableGuard);
-            if (!rm.IsEmpty && rG < nuint.MaxValue)
+            if (!spinLock.IsDisposed && spinLock.TryDispose())
             {
-                //var contiguousCount = rG - rH;
-                //if (contiguousCount == 0) contiguousCount = rm.Length;
-                var span = rm.Span.Slice(rH);
-                res = span.Head;
-                if (++rH >= rm.Length)
+                if (disposing)
                 {
-                    rH = 0;
+                    // TODO: dispose managed state (managed objects)
                 }
-                if (rH == rG)   // the last item has been dequeued
-                {
-                    if (readOnlyContainers.TryDequeue(out var container) && container.HasOwner)
-                    {
-                        // Resize has been in progress
-                        using var k = spinLock.Enter();
-                        container.Dispose();
-                        readMemory = default;
-                    }
-                    rH = 0;
-                }
-                Volatile.Write(ref readHead, rH);
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
             }
-            item = res;
-            return success;
         }
 
-        public void Add(ReadOnlyNativeSpan<T> items)
-        {
-            var mem = resizer.Memory;
-            var rG = Volatile.Read(ref readableGuard);
-            if (rG == nuint.MaxValue) rG = 0;
-            var wH = rG + items.Length;
-            if (wH >= mem.Length)
-            {
-                wH -= mem.Length;
-                if (wH > readHead)  // we need to resize
-                {
-                    wH = items.Length;
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~NativeRingQueue()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
 
-                }
-            }
-            Volatile.Write(ref writeHead, wH);
-            AtomicUtils.Add(ref writtenCount, items.Length);
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

@@ -177,7 +177,7 @@ namespace ModernMemory
                 k &= 1;
                 start += len;
                 k += len;
-                c = value.CompareToByComparisonOperators(NativeMemoryUtils.Add(in head, start));
+                c = value.CompareToByComparisonOperatorsIntPtr(NativeMemoryUtils.Add(in head, start));
                 if (c == 0) break;
                 start = (nuint)(c >> ~0);
                 k &= ~start;
@@ -215,6 +215,42 @@ namespace ModernMemory
                 start = (nuint)(c >> ~0);
                 k &= ~start;
                 start = m + k;
+            }
+            exactMatch = c == 0;
+            return start;
+        }
+        #endregion
+
+        #region KeyValuePair
+        public static nuint BinarySearchKeyValuePair<TKey, TValue, TProxy>(this ReadOnlyNativeSpan<KeyValuePair<TKey, TValue>> span, TKey target, out bool exactMatch, in TProxy proxy) where TProxy : struct, IComparer<TKey>
+            => BinarySearchKeyValuePair(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch, proxy);
+
+        public static nuint BinarySearchKeyValuePair<TKey, TValue, TProxy>(this NativeSpan<KeyValuePair<TKey, TValue>> span, TKey target, out bool exactMatch, in TProxy proxy) where TProxy : struct, IComparer<TKey>
+            => BinarySearchKeyValuePair(in NativeMemoryUtils.GetReference(span), span.Length, target, out exactMatch, proxy);
+
+        [SkipLocalsInit]
+        [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
+        internal static nuint BinarySearchKeyValuePair<TKey, TValue, TProxy>(ref readonly KeyValuePair<TKey, TValue> head, nuint length, TKey? target, out bool exactMatch, in TProxy proxy) where TProxy : struct, IComparer<TKey>
+        {
+            nuint start = 0;
+            nint c = 1;
+            if (length > 0)
+            {
+                var len = length;
+                while (len > 0)
+                {
+                    var k = len;
+                    var m = start;
+                    len >>= 1;
+                    start += len;
+                    k &= 1;
+                    k += len;
+                    c = proxy.Compare(target, NativeMemoryUtils.Add(in head, start).Key);
+                    if (c == 0) break;
+                    start = (nuint)(c >> ~0);
+                    k &= ~start;
+                    start = m + k;
+                }
             }
             exactMatch = c == 0;
             return start;

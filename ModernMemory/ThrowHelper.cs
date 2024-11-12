@@ -31,6 +31,7 @@ namespace ModernMemory
         /// Throws a new instance of <see cref="IndexOutOfRangeException"/>.
         /// </summary>
         [DoesNotReturn]
+        [DebuggerNonUserCode]
         public static void ThrowIndexOutOfRangeException() => throw new IndexOutOfRangeException();
 
         [DebuggerHidden]

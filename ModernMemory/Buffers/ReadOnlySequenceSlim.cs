@@ -578,7 +578,7 @@ namespace ModernMemory.Buffers
                 owner = default;
                 return new(segments.GetHeadReadOnlySpan());
             }
-            var array = new ArrayOwner<ReadOnlySequenceSegment<T>>(segments.Length);
+            var array = new MemoryArray<ReadOnlySequenceSegment<T>>(segments.Length);
             var span = array.Span.Slice(0, segments.Length);
             nuint runningIndex = 0;
             for (nuint i = 0; i < span.Length; i++)

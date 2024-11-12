@@ -208,6 +208,7 @@ namespace ModernMemory
         /// <inheritdoc cref="Span{T}.this[int]"/>
         public ref T this[nuint index]
         {
+            [DebuggerNonUserCode]
             [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
             get
             {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -161,7 +162,7 @@ namespace ModernMemory
         #region Processor Cache
 
         [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
-        public static unsafe void Prefetch<T>(ref readonly T pointer)
+        public static unsafe void Prefetch<T>(scoped ref readonly T pointer)
         {
 #if !DEBUG
             if (Sse.IsSupported)
@@ -169,6 +170,11 @@ namespace ModernMemory
                 Sse.Prefetch0(Unsafe.AsPointer(ref Unsafe.AsRef(in pointer)));
             }
 #endif
+        }
+
+        private static void A([ConstantExpected] bool k)
+        {
+
         }
 
 #endregion

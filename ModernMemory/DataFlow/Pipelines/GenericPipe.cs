@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ModernMemory.DataFlow.Pipelines
 {
-    public sealed class Pipe<T>
+    public sealed partial class GenericPipe<T>
     {
 
     }

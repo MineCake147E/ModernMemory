@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
+using ModernMemory.Threading;
+
 namespace ModernMemory.Collections.Concurrent
 {
     public sealed partial class BoundedNativeRingQueue<T, TStorage>
@@ -34,6 +36,15 @@ namespace ModernMemory.Collections.Concurrent
             }
 
             public void Add(ReadOnlyNativeSpan<T> items) => queue.AddInternal(items, span);
+
+            public void WaitAdd(T item)
+            {
+                var localSpan = span;
+                while (!queue.TryAddInternal(item, localSpan))
+                {
+                    ThreadingExtensions.Yield();
+                }
+            }
         }
     }
 }

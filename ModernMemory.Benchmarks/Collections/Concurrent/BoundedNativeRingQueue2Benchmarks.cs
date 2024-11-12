@@ -17,7 +17,7 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
     [DisassemblyDiagnoser(maxDepth: int.MaxValue)]
     public class BoundedNativeRingQueue2Benchmarks
     {
-        private BoundedNativeRingQueue2<int, ArrayStorage<int>>? queue;
+        private BoundedNativeRingQueue2<int>? queue;
         private Task? clearTask;
         private CancellationTokenSource? tokenSource;
 
@@ -29,7 +29,7 @@ namespace ModernMemory.Benchmarks.Collections.Concurrent
         [GlobalSetup]
         public void Setup()
         {
-            queue = new(new(Capacity));
+            queue = new((nuint)Capacity);
             tokenSource = new();
             clearTask = Task.Run(async () =>
             {
