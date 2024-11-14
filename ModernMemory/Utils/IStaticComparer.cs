@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -45,7 +45,14 @@ namespace ModernMemory.Utils
         where TTransform : ITransform<TItem, TIntermediate>
     {
         public static nint Compare(TItem? x, TItem? y)
-            => TProxy.Compare(TTransform.Transform(x), TTransform.Transform(y));
+        {
+            if (x is null || y is null)
+            {
+                return (nint)((y is null ? (nuint)1 : 0) - (x is null ? (nuint)1 : 0));
+            }
+            // No null arguments
+            return TProxy.Compare(TTransform.Transform(x), TTransform.Transform(y));
+        }
     }
 
     public readonly struct ReverseStaticComparer<T, TProxy> : IStaticComparer<T>
@@ -78,6 +85,13 @@ namespace ModernMemory.Utils
     public readonly struct ComparableStaticComparer<T> : IStaticComparer<T> where T : IComparable<T>
     {
         public static nint Compare(T? x, T? y)
-            => x.CompareTo(y);
+        {
+            if (x is null)
+            {
+                return (nint)((y is null ? (nuint)1 : 0) - 1);
+            }
+            // No null arguments
+            return x.CompareTo(y);
+        }
     }
 }

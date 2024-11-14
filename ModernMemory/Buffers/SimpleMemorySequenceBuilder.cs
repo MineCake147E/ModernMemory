@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -15,7 +15,7 @@ namespace ModernMemory.Buffers
         private ReadOnlyMemorySequence<T> cache;
         private uint cacheInvalidated = AtomicUtils.GetValue(true);
         private NativeQueue<ReadOnlyNativeMemory<T>>? appendQueue;
-        private OverwritableNativeQueue<ReadOnlySequenceSegment<T>> readableSegments;
+        private OverwritableNativeQueue<ReadOnlySequenceSegment<T>> readableSegments = [];
         private MemoryResizer<ReadOnlyNativeMemory<T>> buildBuffer;
         private ValueSpinLockSlim buildLock;
         private ValueSpinLockSlim appendLock;

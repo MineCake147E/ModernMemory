@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,7 +13,6 @@ namespace ModernMemory.Collections
     {
         private NativeMemory<T> buffer0;
         private NativeMemory<T> buffer1;
-        private NativeMemoryPool<T> MemoryPool { get; }
 
 
         private struct Bin : IDisposable
